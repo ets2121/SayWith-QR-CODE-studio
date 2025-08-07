@@ -9,6 +9,7 @@ export interface Design {
   eyeStyle: 'square' | 'rounded' | 'dot' | 'diamond';
   eyeColor: string;
   eyeRadius: number; // Corner radius for the eyes
+  padding: number; // Whitespace around the QR code
   text?: string;
   useImage?: boolean;
   transparentBg?: boolean;

@@ -92,7 +92,9 @@ export default function QrArtStudio() {
   
       const modules = qrData.modules.data;
       const moduleCount = qrData.modules.size;
-      const moduleSize = canvasSize / moduleCount;
+      const padding = design.padding || 0;
+      const qrRegionSize = canvasSize - padding * 2;
+      const moduleSize = qrRegionSize / moduleCount;
   
       const drawBackground = () => {
         return new Promise<void>((bgResolve) => {
@@ -137,8 +139,8 @@ export default function QrArtStudio() {
       };
 
       const drawModule = (x: number, y: number, size: number, style: Design['pixelStyle'] | Design['eyeStyle'], radius: number) => {
-        const top = y * size;
-        const left = x * size;
+        const top = y * size + padding;
+        const left = x * size + padding;
         ctx.beginPath();
         switch (style) {
           case 'dot':
@@ -211,6 +213,7 @@ export default function QrArtStudio() {
                                    design.eyeStyle === 'square' &&
                                    !design.useImage && 
                                    !design.transparentBg &&
+                                   design.padding === 0 &&
                                    !design.pixelGradientStart && 
                                    !design.bgGradientStart;
 
@@ -218,6 +221,7 @@ export default function QrArtStudio() {
              qrCodeDataUrl = await QRCode.toDataURL(content, {
                 errorCorrectionLevel: 'H',
                 width: QR_IMG_SIZE,
+                margin: design.padding,
                 color: {
                     dark: design.pixelColor,
                     light: design.backgroundColor,
@@ -313,6 +317,7 @@ export default function QrArtStudio() {
       eyeStyle: 'square',
       eyeColor: "#000000",
       eyeRadius: 8,
+      padding: 16,
       text: "Your Text Here",
       useImage: false,
       transparentBg: false,
@@ -410,7 +415,7 @@ export default function QrArtStudio() {
                         </div>
                     </div>
                     <div>
-                        <Label>Eye Radius (for corners)</Label>
+                        <Label>Eye Radius (for 'Rounded' style)</Label>
                         <div className="flex items-center gap-4">
                             <Slider
                             value={[design.eyeRadius]}
@@ -422,6 +427,20 @@ export default function QrArtStudio() {
                         </div>
                     </div>
                  </div>
+
+                {/* Padding */}
+                 <div className="space-y-4">
+                  <Label>QR Code Padding</Label>
+                  <div className="flex items-center gap-4">
+                    <Slider
+                      value={[design.padding]}
+                      onValueChange={(v) => updateDesign(design.id, { padding: v[0] })}
+                      max={64}
+                      step={1}
+                    />
+                    <span className="text-sm text-muted-foreground w-8">{design.padding}</span>
+                  </div>
+                </div>
 
 
                 {/* Color Settings */}
