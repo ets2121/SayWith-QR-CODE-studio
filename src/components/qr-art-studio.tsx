@@ -233,11 +233,10 @@ export default function QrArtStudio() {
         }
         let svgText = await templateResponse.text();
 
-        // 1. Replace QR Code placeholder
-        svgText = svgText.replace(/(<image[^>]*id="qr-code-image"[^>]*href=")[^"]*(")/, `$1${qrCodeDataUrl}$2`);
-        svgText = svgText.replace(/(<image[^>]*id="qr-code-image"[^>]*xlink:href=")[^"]*(")/, `$1${qrCodeDataUrl}$2`);
+        // Replace the href attribute in the first <image> tag found.
+        svgText = svgText.replace(/(<image[^>]*?(?:href|xlink:href)=")[^"]*(")/, `$1${qrCodeDataUrl}$2`);
         
-        // 2. Replace text placeholder and color
+        // Replace text placeholder and color
         if (design.text) {
            svgText = svgText.replace(/(<text[^>]*>)\s*TEXT\s*(<\/text>)/g, `$1${design.text}$2`);
            if (design.foregroundColor) {
@@ -570,6 +569,3 @@ export default function QrArtStudio() {
     </div>
   );
 }
-
-    
-    
