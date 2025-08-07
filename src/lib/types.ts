@@ -1,13 +1,13 @@
 export interface Design {
   id: number;
   name: string;
+  template: string; // Path to the SVG template
   pixelStyle: 'square' | 'rounded' | 'dot';
   pixelColor: string;
-  backgroundColor: string;
+  backgroundColor: string; // For the QR code itself, can be 'transparent'
   eyeColor: string;
-  logo?: string;
-  logoSize: number;
-  logoPadding: number;
+  text?: string;
+  useImage?: boolean;
 }
 
 export interface GeneratedQr {

@@ -1,32 +1,13 @@
 [
   {
     "id": 1,
-    "name": "Cyan Squares",
+    "name": "Default Template",
+    "template": "/templates/template1.svg",
     "pixelStyle": "square",
-    "pixelColor": "#2DD4FF",
-    "backgroundColor": "#222F3E",
-    "eyeColor": "#9F5DFF",
-    "logoSize": 0.3,
-    "logoPadding": 5
-  },
-  {
-    "id": 2,
-    "name": "Violet Dots",
-    "pixelStyle": "dot",
-    "pixelColor": "#9F5DFF",
-    "backgroundColor": "transparent",
-    "eyeColor": "#2DD4FF",
-    "logoSize": 0.3,
-    "logoPadding": 5
-  },
-  {
-    "id": 3,
-    "name": "Rounded Classic",
-    "pixelStyle": "rounded",
-    "pixelColor": "#FFFFFF",
-    "backgroundColor": "#333333",
-    "eyeColor": "#FFFFFF",
-    "logoSize": 0.3,
-    "logoPadding": 5
+    "pixelColor": "#000000",
+    "backgroundColor": "#ffffff",
+    "eyeColor": "#000000",
+    "text": "SCAN ME",
+    "useImage": false
   }
 ]
