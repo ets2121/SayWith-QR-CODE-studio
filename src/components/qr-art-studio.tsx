@@ -325,7 +325,7 @@ export default function QrArtStudio() {
                   </div>
                   <div>
                     <Label>Foreground Color</Label>
-                    <Input type="color" value={design.foregroundColor} onChange={(e) => updateDesign(design.id, { foregroundColor: e.target.value })} className="p-1 h-10"/>
+                    <Input type="color" value={design.foregroundColor || '#000000'} onChange={(e) => updateDesign(design.id, { foregroundColor: e.target.value })} className="p-1 h-10"/>
                   </div>
                   <div>
                     <Label>Eye Color</Label>
@@ -473,3 +473,5 @@ export default function QrArtStudio() {
     </div>
   );
 }
+
+    

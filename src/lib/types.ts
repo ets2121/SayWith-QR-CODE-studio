@@ -15,3 +15,5 @@ export interface GeneratedQr {
   designId: number;
   svg: string;
 }
+
+    
