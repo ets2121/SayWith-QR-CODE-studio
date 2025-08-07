@@ -120,12 +120,12 @@ export default function QrArtStudio() {
         let svgText = await templateResponse.text();
 
         // 1. Replace QR Code placeholder
-        svgText = svgText.replace(/xlink:href="data:image\/png;base64,[^"]+"/g, `xlink:href="${qrCodeDataUrl}"`);
-        svgText = svgText.replace(/href="data:image\/png;base64,[^"]+"/g, `href="${qrCodeDataUrl}"`);
+        svgText = svgText.replace(/(<image[^>]*id="qr-code-image"[^>]*href=")[^"]*(")/g, `$1${qrCodeDataUrl}$2`);
+        svgText = svgText.replace(/(<image[^>]*xlink:href=")[^"]*(")/g, `$1${qrCodeDataUrl}$2`);
 
         // 2. Replace background image if needed
         if (design.useImage && backgroundImage) {
-          svgText = svgText.replace(/id="background-image"[^>]*href="[^"]*"/, `id="background-image" href="${backgroundImage}"`);
+          svgText = svgText.replace(/(<image[^>]*id="background-image"[^>]*href=")[^"]*(")/g, `$1${backgroundImage}$2`);
         }
         
         // 3. Replace text placeholder
@@ -135,7 +135,7 @@ export default function QrArtStudio() {
 
         qrResults.push({
           designId: design.id,
-          svg: `data:image/svg+xml;base64,${btoa(svgText)}`,
+          svg: `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svgText)))}`,
         });
       }
 
