@@ -34,6 +34,7 @@ export default function QrArtStudio() {
   const previewContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    // Fetch designs
     fetch('/designs.json')
       .then((res) => res.json())
       .then((data: Design[]) => setDesigns(data))
@@ -45,13 +46,14 @@ export default function QrArtStudio() {
         });
       });
       
+    // Fetch SVG templates
     fetch('/api/templates')
       .then((res) => res.json())
       .then((data: string[]) => {
         if (data.length > 0) {
           setSvgTemplates(data);
         } else {
-          setSvgTemplates(['/templates/template1.svg']);
+          setSvgTemplates(['/templates/template1.svg']); // Fallback
           toast({
             title: "No Templates Found",
             description: "No SVG templates found in /public/templates. Using a default. Please add your own SVGs.",
@@ -59,7 +61,7 @@ export default function QrArtStudio() {
         }
       })
       .catch(() => {
-        setSvgTemplates(['/templates/template1.svg']);
+        setSvgTemplates(['/templates/template1.svg']); // Fallback
         toast({
           variant: "destructive",
           title: "Error",
@@ -94,6 +96,12 @@ export default function QrArtStudio() {
   
       const drawBackground = () => {
         return new Promise<void>((bgResolve) => {
+          if (design.transparentBg) {
+              ctx.clearRect(0, 0, canvasSize, canvasSize);
+              bgResolve();
+              return;
+          }
+
           if (design.useImage && bgImage) {
             const img = new Image();
             img.onload = () => {
@@ -122,11 +130,36 @@ export default function QrArtStudio() {
       };
   
       const isFinderPattern = (x: number, y: number, moduleCount: number): boolean => {
-        if (x < 7 && y < 7) return true;
-        if (x >= moduleCount - 7 && y < 7) return true;
-        if (x < 7 && y >= moduleCount - 7) return true;
+        if (x < 7 && y < 7) return true; // Top-left eye
+        if (x >= moduleCount - 7 && y < 7) return true; // Top-right eye
+        if (x < 7 && y >= moduleCount - 7) return true; // Bottom-left eye
         return false;
       };
+
+      const drawModule = (x: number, y: number, size: number, style: Design['pixelStyle'] | Design['eyeStyle'], radius: number) => {
+        const top = y * size;
+        const left = x * size;
+        ctx.beginPath();
+        switch (style) {
+          case 'dot':
+            ctx.arc(left + size / 2, top + size / 2, (size / 2) * 0.9, 0, 2 * Math.PI);
+            break;
+          case 'diamond':
+            ctx.moveTo(left + size / 2, top);
+            ctx.lineTo(left + size, top + size / 2);
+            ctx.lineTo(left + size / 2, top + size);
+            ctx.lineTo(left, top + size / 2);
+            ctx.closePath();
+            break;
+          case 'rounded':
+            ctx.roundRect(left, top, size, size, [radius]);
+            break;
+          default: // square
+            ctx.rect(left, top, size, size);
+            break;
+        }
+        ctx.fill();
+      }
   
       drawBackground().then(() => {
         let pixelFillStyle: string | CanvasGradient = design.pixelColor;
@@ -142,31 +175,14 @@ export default function QrArtStudio() {
             const index = y * moduleCount + x;
             if (!modules[index]) continue;
 
-            const top = y * moduleSize;
-            const left = x * moduleSize;
+            const isFinder = isFinderPattern(x, y, moduleCount);
             
-            ctx.fillStyle = isFinderPattern(x, y, moduleCount) ? design.eyeColor : pixelFillStyle;
-
-            if (isFinderPattern(x, y, moduleCount)) {
-                ctx.beginPath();
-                ctx.roundRect(left, top, moduleSize, moduleSize, [design.eyeRadius]);
-                ctx.fill();
+            if (isFinder) {
+              ctx.fillStyle = design.eyeColor;
+              drawModule(x, y, moduleSize, design.eyeStyle, design.eyeRadius);
             } else {
-                switch (design.pixelStyle) {
-                    case 'dot':
-                    ctx.beginPath();
-                    ctx.arc(left + moduleSize / 2, top + moduleSize / 2, (moduleSize / 2) * 0.9, 0, 2 * Math.PI);
-                    ctx.fill();
-                    break;
-                    case 'rounded':
-                    ctx.beginPath();
-                    ctx.roundRect(left, top, moduleSize, moduleSize, [moduleSize * 0.25]);
-                    ctx.fill();
-                    break;
-                    default: // square
-                    ctx.fillRect(left, top, moduleSize, moduleSize);
-                    break;
-                }
+              ctx.fillStyle = pixelFillStyle;
+              drawModule(x, y, moduleSize, design.pixelStyle, moduleSize * 0.25);
             }
           }
         }
@@ -189,7 +205,27 @@ export default function QrArtStudio() {
       const qrData = QRCode.create(content, { errorCorrectionLevel: 'H' });
 
       for (const design of designs) {
-        const qrCodeDataUrl = await drawCustomQr(qrData, design, design.useImage ? backgroundImage : null);
+        let qrCodeDataUrl: string;
+        
+        const useSimpleGenerator = design.pixelStyle === 'square' &&
+                                   design.eyeStyle === 'square' &&
+                                   !design.useImage && 
+                                   !design.transparentBg &&
+                                   !design.pixelGradientStart && 
+                                   !design.bgGradientStart;
+
+        if (useSimpleGenerator) {
+             qrCodeDataUrl = await QRCode.toDataURL(content, {
+                errorCorrectionLevel: 'H',
+                width: QR_IMG_SIZE,
+                color: {
+                    dark: design.pixelColor,
+                    light: design.backgroundColor,
+                },
+            });
+        } else {
+            qrCodeDataUrl = await drawCustomQr(qrData, design, design.useImage ? backgroundImage : null);
+        }
 
         const templateResponse = await fetch(design.template);
         if (!templateResponse.ok) {
@@ -274,10 +310,12 @@ export default function QrArtStudio() {
       pixelColor: "#000000",
       backgroundColor: "#FFFFFF",
       foregroundColor: "#000000",
+      eyeStyle: 'square',
       eyeColor: "#000000",
       eyeRadius: 8,
       text: "Your Text Here",
       useImage: false,
+      transparentBg: false,
       pixelGradientStart: "",
       pixelGradientEnd: "",
       bgGradientStart: "",
@@ -323,6 +361,7 @@ export default function QrArtStudio() {
                 </div>
               </AccordionTrigger>
               <AccordionContent className="p-4 space-y-6 bg-background/50 rounded-md">
+                 {/* Main Settings */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
                     <Label>SVG Template</Label>
@@ -343,24 +382,49 @@ export default function QrArtStudio() {
                           <SelectItem value="square">Square</SelectItem>
                           <SelectItem value="rounded">Rounded</SelectItem>
                           <SelectItem value="dot">Dot</SelectItem>
+                          <SelectItem value="diamond">Diamond</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
                 </div>
 
-                <div className="space-y-4">
-                  <Label>Eye Radius (for corners)</Label>
-                  <div className="flex items-center gap-4">
-                    <Slider
-                      value={[design.eyeRadius]}
-                      onValueChange={(v) => updateDesign(design.id, { eyeRadius: v[0] })}
-                      max={30}
-                      step={1}
-                    />
-                    <span className="text-sm text-muted-foreground w-8">{design.eyeRadius}</span>
-                  </div>
-                </div>
+                {/* Eye Settings */}
+                 <div className="p-4 border rounded-lg space-y-4">
+                    <h4 className="font-semibold text-lg">Eye Customization</h4>
+                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <Label>Eye Style</Label>
+                            <Select value={design.eyeStyle} onValueChange={(v: Design['eyeStyle']) => updateDesign(design.id, { eyeStyle: v })}>
+                                <SelectTrigger><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                <SelectItem value="square">Square</SelectItem>
+                                <SelectItem value="rounded">Rounded</SelectItem>
+                                <SelectItem value="dot">Dot</SelectItem>
+                                <SelectItem value="diamond">Diamond</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div>
+                            <Label>Eye Color</Label>
+                            <Input type="color" value={design.eyeColor} onChange={(e) => updateDesign(design.id, { eyeColor: e.target.value })} className="p-1 h-10"/>
+                        </div>
+                    </div>
+                    <div>
+                        <Label>Eye Radius (for corners)</Label>
+                        <div className="flex items-center gap-4">
+                            <Slider
+                            value={[design.eyeRadius]}
+                            onValueChange={(v) => updateDesign(design.id, { eyeRadius: v[0] })}
+                            max={30}
+                            step={1}
+                            />
+                            <span className="text-sm text-muted-foreground w-8">{design.eyeRadius}</span>
+                        </div>
+                    </div>
+                 </div>
 
+
+                {/* Color Settings */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
                     <div>
                         <Label>Pixel Color</Label>
@@ -368,37 +432,33 @@ export default function QrArtStudio() {
                         <p className="text-xs text-muted-foreground mt-1">Used if gradients are not set.</p>
                     </div>
                     <div>
-                        <Label>Eye Color</Label>
-                        <Input type="color" value={design.eyeColor} onChange={(e) => updateDesign(design.id, { eyeColor: e.target.value })} className="p-1 h-10"/>
-                    </div>
-                    <div>
                         <Label>QR Background Color</Label>
-                        <Input type="color" value={design.backgroundColor} onChange={(e) => updateDesign(design.id, { backgroundColor: e.target.value, bgGradientStart: '', bgGradientEnd: '' })} className="p-1 h-10" disabled={design.useImage}/>
-                        {design.useImage && <p className="text-xs text-muted-foreground mt-1">Disabled for image backgrounds.</p>}
-                    </div>
-                    <div>
-                        <Label>Foreground Color (for text)</Label>
-                        <Input type="color" value={design.foregroundColor || '#000000'} onChange={(e) => updateDesign(design.id, { foregroundColor: e.target.value })} className="p-1 h-10"/>
+                        <Input type="color" value={design.backgroundColor} onChange={(e) => updateDesign(design.id, { backgroundColor: e.target.value, bgGradientStart: '', bgGradientEnd: '' })} className="p-1 h-10" disabled={design.useImage || design.transparentBg}/>
+                        {(design.useImage || design.transparentBg) && <p className="text-xs text-muted-foreground mt-1">Disabled for image/transparent backgrounds.</p>}
                     </div>
                     <div>
                         <Label>Pixel Gradient Start</Label>
-                        <Input type="color" value={design.pixelGradientStart || ''} onChange={(e) => updateDesign(design.id, { pixelGradientStart: e.target.value })} className="p-1 h-10"/>
+                        <Input type="color" value={design.pixelGradientStart || '#000000'} onChange={(e) => updateDesign(design.id, { pixelGradientStart: e.target.value })} className="p-1 h-10"/>
                     </div>
                      <div>
                         <Label>Pixel Gradient End</Label>
-                        <Input type="color" value={design.pixelGradientEnd || ''} onChange={(e) => updateDesign(design.id, { pixelGradientEnd: e.target.value })} className="p-1 h-10"/>
+                        <Input type="color" value={design.pixelGradientEnd || '#000000'} onChange={(e) => updateDesign(design.id, { pixelGradientEnd: e.target.value })} className="p-1 h-10"/>
                     </div>
                     <div>
                         <Label>BG Gradient Start</Label>
-                        <Input type="color" value={design.bgGradientStart || ''} onChange={(e) => updateDesign(design.id, { bgGradientStart: e.target.value })} className="p-1 h-10" disabled={design.useImage}/>
+                        <Input type="color" value={design.bgGradientStart || '#FFFFFF'} onChange={(e) => updateDesign(design.id, { bgGradientStart: e.target.value })} className="p-1 h-10" disabled={design.useImage || design.transparentBg}/>
                     </div>
                     <div>
                         <Label>BG Gradient End</Label>
-                        <Input type="color" value={design.bgGradientEnd || ''} onChange={(e) => updateDesign(design.id, { bgGradientEnd: e.target.value })} className="p-1 h-10" disabled={design.useImage}/>
+                        <Input type="color" value={design.bgGradientEnd || '#FFFFFF'} onChange={(e) => updateDesign(design.id, { bgGradientEnd: e.target.value })} className="p-1 h-10" disabled={design.useImage || design.transparentBg}/>
                     </div>
                 </div>
                 
                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <Label>Foreground Color (for text)</Label>
+                        <Input type="color" value={design.foregroundColor || '#000000'} onChange={(e) => updateDesign(design.id, { foregroundColor: e.target.value })} className="p-1 h-10"/>
+                    </div>
                     <div className="space-y-2">
                         <Label>Embedded Text</Label>
                         <Textarea
@@ -407,15 +467,27 @@ export default function QrArtStudio() {
                           placeholder="Enter text to embed in the SVG"
                         />
                     </div>
-                    <div className="flex items-start space-x-2 pt-6">
+                 </div>
+
+                {/* Toggles */}
+                <div className="flex items-center space-x-4">
+                    <div className="flex items-center space-x-2">
                         <Switch
                             id={`use-image-${design.id}`}
                             checked={design.useImage}
                             onCheckedChange={(checked) => updateDesign(design.id, { useImage: checked })}
                         />
-                        <Label htmlFor={`use-image-${design.id}`} className="leading-tight">Use Uploaded Image as QR Background</Label>
+                        <Label htmlFor={`use-image-${design.id}`}>Use Image Background</Label>
                     </div>
-                 </div>
+                    <div className="flex items-center space-x-2">
+                         <Switch
+                            id={`transparent-bg-${design.id}`}
+                            checked={!!design.transparentBg}
+                            onCheckedChange={(checked) => updateDesign(design.id, { transparentBg: checked })}
+                        />
+                        <Label htmlFor={`transparent-bg-${design.id}`}>Transparent QR Background</Label>
+                    </div>
+                </div>
 
                 <Button variant="destructive" size="sm" onClick={() => removeDesign(design.id)}><Trash2 className="mr-2"/> Remove Design</Button>
               </AccordionContent>
@@ -480,7 +552,7 @@ export default function QrArtStudio() {
                           </div>
                        }
                   </div>
-                  <p className="text-sm text-muted-foreground">Used by designs where "Use Uploaded Image as QR Background" is enabled.</p>
+                  <p className="text-sm text-muted-foreground">Used by designs where "Use Image Background" is enabled.</p>
               </div>
             </CardContent>
             <CardFooter>
