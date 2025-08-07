@@ -101,7 +101,7 @@ export default function QrArtStudio() {
           resolve(canvas.toDataURL('image/png'));
         };
         qrImage.onerror = reject;
-        const transparentQrOptions = {
+        const transparentQrOptions: QRCode.QRCodeToDataURLOptions = {
           ...options,
           color: {
             ...options.color,
@@ -342,7 +342,7 @@ export default function QrArtStudio() {
                  <div className="space-y-2">
                     <Label>Embedded Text</Label>
                     <Textarea
-                      value={design.text}
+                      value={design.text || ''}
                       onChange={(e) => updateDesign(design.id, { text: e.target.value })}
                       placeholder="Enter text to embed in the SVG"
                     />
