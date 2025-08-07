@@ -168,52 +168,46 @@ export default function QrArtStudio() {
         const cx = padding + cornerX * moduleSize + eyeSize / 2;
         const cy = padding + cornerY * moduleSize + eyeSize / 2;
         const pupilSize = moduleSize * 3;
-
-        ctx.fillStyle = design.eyeColor;
         
-        // Frame
+        // Draw Frame
+        ctx.fillStyle = design.eyeColor;
+        const framePath = new Path2D();
         switch(shape) {
             case 'shield':
-                ctx.beginPath();
-                ctx.moveTo(cx, cy - eyeSize / 2);
-                ctx.lineTo(cx + eyeSize / 2, cy - eyeSize / 4);
-                ctx.lineTo(cx + eyeSize / 2, cy + eyeSize / 4);
-                ctx.bezierCurveTo(cx + eyeSize / 2, cy + eyeSize / 2, cx, cy + eyeSize/2, cx, cy + eyeSize/2);
-                ctx.bezierCurveTo(cx, cy + eyeSize / 2, cx - eyeSize / 2, cy + eyeSize / 2, cx - eyeSize / 2, cy + eyeSize/4);
-                ctx.lineTo(cx - eyeSize / 2, cy - eyeSize / 4);
-                ctx.closePath();
+                framePath.moveTo(cx, cy - eyeSize / 2);
+                framePath.lineTo(cx + eyeSize / 2, cy - eyeSize / 4);
+                framePath.lineTo(cx + eyeSize / 2, cy + eyeSize / 4);
+                framePath.bezierCurveTo(cx + eyeSize / 2, cy + eyeSize / 2, cx, cy + eyeSize/2, cx, cy + eyeSize/2);
+                framePath.bezierCurveTo(cx, cy + eyeSize / 2, cx - eyeSize / 2, cy + eyeSize / 2, cx - eyeSize / 2, cy + eyeSize/4);
+                framePath.lineTo(cx - eyeSize / 2, cy - eyeSize / 4);
+                framePath.closePath();
                 break;
             case 'flower':
                 for(let i=0; i < 6; i++) {
                     const angle = (i / 6) * 2 * Math.PI;
-                    ctx.beginPath();
-                    ctx.arc(cx + Math.cos(angle) * eyeSize/4, cy + Math.sin(angle) * eyeSize/4, eyeSize/4, 0, 2 * Math.PI);
-                    ctx.fill();
+                    framePath.addPath(new Path2D(`M ${cx + Math.cos(angle) * eyeSize/4}, ${cy + Math.sin(angle) * eyeSize/4} a ${eyeSize/4} ${eyeSize/4} 0 1 1 0 0.01`));
                 }
                 break;
             default: // frame
                 const frameRadius = design.eyeRadius * (moduleSize / 8);
-                ctx.beginPath();
-                ctx.roundRect(cx - eyeSize / 2, cy - eyeSize / 2, eyeSize, eyeSize, [frameRadius]);
+                framePath.roundRect(cx - eyeSize / 2, cy - eyeSize / 2, eyeSize, eyeSize, [frameRadius]);
                 break;
         }
-        ctx.fill();
+        ctx.fill(framePath);
         
-        // Pupil
+        // Draw Pupil
         ctx.fillStyle = design.pixelColor;
+        const pupilPath = new Path2D();
         switch(style) {
             case 'circle':
-                 ctx.beginPath();
-                 ctx.arc(cx, cy, pupilSize/2, 0, 2*Math.PI);
-                 ctx.fill();
+                 pupilPath.arc(cx, cy, pupilSize/2, 0, 2*Math.PI);
                  break;
             default: // square
                 const pupilRadius = design.eyeRadius * (moduleSize / 16);
-                ctx.beginPath();
-                ctx.roundRect(cx - pupilSize / 2, cy - pupilSize / 2, pupilSize, pupilSize, [pupilRadius]);
-                ctx.fill();
+                 pupilPath.roundRect(cx - pupilSize / 2, cy - pupilSize / 2, pupilSize, pupilSize, [pupilRadius]);
                 break;
         }
+        ctx.fill(pupilPath);
       }
 
       const clipCanvas = () => {
