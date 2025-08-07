@@ -101,7 +101,11 @@ export default function QrArtStudio() {
               ctx.drawImage(img, 0, 0, canvasSize, canvasSize);
               bgResolve();
             };
-            img.onerror = () => bgResolve(); // Continue even if image fails
+            img.onerror = () => { // Continue even if image fails but draw background color
+                ctx.fillStyle = design.backgroundColor;
+                ctx.fillRect(0, 0, canvasSize, canvasSize);
+                bgResolve();
+            };
             img.src = bgImage;
           } else {
             if (design.bgGradientStart && design.bgGradientEnd) {
@@ -160,7 +164,6 @@ export default function QrArtStudio() {
         }
 
         // Draw custom eyes
-        ctx.fillStyle = pixelFillStyle;
         const eyeRadius = design.eyeRadius;
         const eyeSize = 7 * moduleSize;
         const eyePositions = [
@@ -172,8 +175,26 @@ export default function QrArtStudio() {
         eyePositions.forEach(([x, y]) => {
           const top = y * moduleSize;
           const left = x * moduleSize;
+          
+          const outerSize = 7 * moduleSize;
+          const innerSize = 3 * moduleSize;
+          const innerOffset = 2 * moduleSize;
+
+          // Outer shape
+          ctx.fillStyle = pixelFillStyle;
           ctx.beginPath();
-          ctx.roundRect(left, top, eyeSize, eyeSize, [eyeRadius]);
+          ctx.roundRect(left, top, outerSize, outerSize, [eyeRadius]);
+          ctx.fill();
+
+          // Inner shape (hole)
+          ctx.fillStyle = design.backgroundColor;
+          if (design.useImage && bgImage) {
+            // This is tricky. For simplicity, we fill with a solid color.
+            // A more complex solution would involve clipping.
+            ctx.fillStyle = '#FFFFFF'; // Default to white if image is used
+          }
+          ctx.beginPath();
+          ctx.roundRect(left + innerOffset, top + innerOffset, innerSize, innerSize, [eyeRadius * 0.5]);
           ctx.fill();
         });
 
@@ -544,3 +565,5 @@ export default function QrArtStudio() {
     </div>
   );
 }
+
+    
