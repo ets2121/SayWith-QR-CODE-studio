@@ -103,7 +103,7 @@ export default function QrArtStudio() {
           margin: 1,
           color: {
             dark: design.pixelColor,
-            light: design.backgroundColor,
+            light: design.useImage ? '#00000000' : design.backgroundColor,
           },
         };
         
@@ -283,7 +283,8 @@ export default function QrArtStudio() {
                   </div>
                   <div>
                     <Label>QR Background Color</Label>
-                    <Input type="color" value={design.backgroundColor} onChange={(e) => updateDesign(design.id, { backgroundColor: e.target.value })} className="p-1 h-10"/>
+                    <Input type="color" value={design.backgroundColor} onChange={(e) => updateDesign(design.id, { backgroundColor: e.target.value })} className="p-1 h-10" disabled={design.useImage}/>
+                    {design.useImage && <p className="text-xs text-muted-foreground mt-1">Disabled when using background image.</p>}
                   </div>
                 </div>
                 
