@@ -143,7 +143,8 @@ export default function QrArtStudio() {
         const left = x * size + padding;
         ctx.beginPath();
         switch (style) {
-          case 'dot':
+          case 'circle':
+          case 'dot': // dot is for backwards compatibility
             ctx.arc(left + size / 2, top + size / 2, (size / 2) * 0.9, 0, 2 * Math.PI);
             break;
           case 'diamond':
@@ -161,6 +162,16 @@ export default function QrArtStudio() {
             break;
         }
         ctx.fill();
+      }
+
+      const clipCanvas = () => {
+        if (design.canvasShape === 'circle') {
+          ctx.globalCompositeOperation = 'destination-in';
+          ctx.beginPath();
+          ctx.arc(canvasSize / 2, canvasSize / 2, canvasSize / 2, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.globalCompositeOperation = 'source-over';
+        }
       }
   
       drawBackground().then(() => {
@@ -188,6 +199,7 @@ export default function QrArtStudio() {
             }
           }
         }
+        clipCanvas();
         resolve(canvas.toDataURL('image/png'));
       });
     });
@@ -211,9 +223,10 @@ export default function QrArtStudio() {
         
         const useSimpleGenerator = design.pixelStyle === 'square' &&
                                    design.eyeStyle === 'square' &&
+                                   design.canvasShape === 'square' &&
                                    !design.useImage && 
                                    !design.transparentBg &&
-                                   design.padding === 0 &&
+                                   !design.padding &&
                                    !design.pixelGradientStart && 
                                    !design.bgGradientStart;
 
@@ -318,6 +331,7 @@ export default function QrArtStudio() {
       eyeColor: "#000000",
       eyeRadius: 8,
       padding: 16,
+      canvasShape: 'square',
       text: "Your Text Here",
       useImage: false,
       transparentBg: false,
@@ -393,6 +407,36 @@ export default function QrArtStudio() {
                     </div>
                 </div>
 
+                 {/* Canvas Settings */}
+                 <div className="p-4 border rounded-lg space-y-4">
+                    <h4 className="font-semibold text-lg">QR Canvas Settings</h4>
+                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <Label>Canvas Shape</Label>
+                            <Select value={design.canvasShape} onValueChange={(v: Design['canvasShape']) => updateDesign(design.id, { canvasShape: v })}>
+                                <SelectTrigger><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                <SelectItem value="square">Square</SelectItem>
+                                <SelectItem value="circle">Circle</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    </div>
+                    <div>
+                        <Label>QR Code Padding</Label>
+                        <div className="flex items-center gap-4">
+                            <Slider
+                            value={[design.padding]}
+                            onValueChange={(v) => updateDesign(design.id, { padding: v[0] })}
+                            max={64}
+                            step={1}
+                            />
+                            <span className="text-sm text-muted-foreground w-8">{design.padding}</span>
+                        </div>
+                    </div>
+                 </div>
+
+
                 {/* Eye Settings */}
                  <div className="p-4 border rounded-lg space-y-4">
                     <h4 className="font-semibold text-lg">Eye Customization</h4>
@@ -404,7 +448,7 @@ export default function QrArtStudio() {
                                 <SelectContent>
                                 <SelectItem value="square">Square</SelectItem>
                                 <SelectItem value="rounded">Rounded</SelectItem>
-                                <SelectItem value="dot">Dot</SelectItem>
+                                <SelectItem value="circle">Circle</SelectItem>
                                 <SelectItem value="diamond">Diamond</SelectItem>
                                 </SelectContent>
                             </Select>
@@ -427,21 +471,6 @@ export default function QrArtStudio() {
                         </div>
                     </div>
                  </div>
-
-                {/* Padding */}
-                 <div className="space-y-4">
-                  <Label>QR Code Padding</Label>
-                  <div className="flex items-center gap-4">
-                    <Slider
-                      value={[design.padding]}
-                      onValueChange={(v) => updateDesign(design.id, { padding: v[0] })}
-                      max={64}
-                      step={1}
-                    />
-                    <span className="text-sm text-muted-foreground w-8">{design.padding}</span>
-                  </div>
-                </div>
-
 
                 {/* Color Settings */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
