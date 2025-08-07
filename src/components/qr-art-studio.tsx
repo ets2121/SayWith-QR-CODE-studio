@@ -86,7 +86,7 @@ export default function QrArtStudio() {
       const canvasSize = QR_IMG_SIZE;
       canvas.width = canvasSize;
       canvas.height = canvasSize;
-      const ctx = canvas.getContext('2d');
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
       if (!ctx) return reject('Could not get canvas context');
 
       const modules = qrData.modules.data;
@@ -101,106 +101,125 @@ export default function QrArtStudio() {
               ctx.drawImage(img, 0, 0, canvasSize, canvasSize);
               bgResolve();
             };
-            img.onerror = () => { // Continue even if image fails but draw background color
-                ctx.fillStyle = design.backgroundColor;
-                ctx.fillRect(0, 0, canvasSize, canvasSize);
-                bgResolve();
+            img.onerror = () => {
+              // If image fails, use a solid color background
+              ctx.fillStyle = design.backgroundColor;
+              ctx.fillRect(0, 0, canvasSize, canvasSize);
+              bgResolve();
             };
             img.src = bgImage;
           } else {
+             // Fallback to gradient or solid color background for the canvas
             if (design.bgGradientStart && design.bgGradientEnd) {
-              const gradient = ctx.createLinearGradient(0, 0, canvasSize, canvasSize);
-              gradient.addColorStop(0, design.bgGradientStart);
-              gradient.addColorStop(1, design.bgGradientEnd);
-              ctx.fillStyle = gradient;
+                const gradient = ctx.createLinearGradient(0, 0, canvasSize, canvasSize);
+                gradient.addColorStop(0, design.bgGradientStart);
+                gradient.addColorStop(1, design.bgGradientEnd);
+                ctx.fillStyle = gradient;
             } else {
-              ctx.fillStyle = design.backgroundColor;
+                ctx.fillStyle = design.backgroundColor;
             }
             ctx.fillRect(0, 0, canvasSize, canvasSize);
             bgResolve();
           }
         });
       };
+      
+      const isFinderPattern = (x: number, y: number, moduleCount: number): boolean => {
+        if (x < 8 && y < 8) return true; // Top-left eye
+        if (x >= moduleCount - 8 && y < 8) return true; // Top-right eye
+        if (x < 8 && y >= moduleCount - 8) return true; // Bottom-left eye
+        return false;
+      };
 
       drawCanvasBg().then(() => {
-        // Set Pixel Color/Gradient
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = canvasSize;
+        tempCanvas.height = canvasSize;
+        const tempCtx = tempCanvas.getContext('2d');
+        if (!tempCtx) return reject('Could not get temporary canvas context');
+
+        // Draw the background on the temp canvas
+        if (design.bgGradientStart && design.bgGradientEnd && !design.useImage) {
+            const gradient = tempCtx.createLinearGradient(0, 0, canvasSize, canvasSize);
+            gradient.addColorStop(0, design.bgGradientStart);
+            gradient.addColorStop(1, design.bgGradientEnd);
+            tempCtx.fillStyle = gradient;
+        } else {
+            tempCtx.fillStyle = design.backgroundColor;
+        }
+        tempCtx.fillRect(0, 0, canvasSize, canvasSize);
+
+        // Prepare pixel fill style
         let pixelFillStyle: string | CanvasGradient = design.pixelColor;
         if (design.pixelGradientStart && design.pixelGradientEnd) {
-          const gradient = ctx.createLinearGradient(0, 0, canvasSize, canvasSize);
+          const gradient = tempCtx.createLinearGradient(0, 0, canvasSize, canvasSize);
           gradient.addColorStop(0, design.pixelGradientStart);
           gradient.addColorStop(1, design.pixelGradientEnd);
           pixelFillStyle = gradient;
         }
         
-        // Draw modules
+        // Draw the QR modules
         for (let y = 0; y < moduleCount; y++) {
           for (let x = 0; x < moduleCount; x++) {
             const index = y * moduleCount + x;
-            if (!modules[index]) continue;
+            if (modules[index]) {
+                if (design.useImage && bgImage) {
+                    const imgData = ctx.getImageData(x * moduleSize, y * moduleSize, moduleSize, moduleSize);
+                    let totalBrightness = 0;
+                    for (let i = 0; i < imgData.data.length; i += 4) {
+                        totalBrightness += (imgData.data[i] + imgData.data[i+1] + imgData.data[i+2]) / 3;
+                    }
+                    const avgBrightness = totalBrightness / (imgData.data.length / 4);
 
-            const isEye = (x < 7 && y < 7) || (x > moduleCount - 8 && y < 7) || (x < 7 && y > moduleCount - 8);
-            if (isEye) continue; // Skip drawing default eyes, we'll draw them custom
+                    // Use dark pixel color for dark areas of the image, and background color for light areas
+                    tempCtx.fillStyle = avgBrightness < 128 ? design.pixelColor : design.backgroundColor;
 
-            ctx.fillStyle = pixelFillStyle;
-            const top = y * moduleSize;
-            const left = x * moduleSize;
+                } else {
+                    tempCtx.fillStyle = pixelFillStyle;
+                }
+              
+              const top = y * moduleSize;
+              const left = x * moduleSize;
 
-            switch(design.pixelStyle) {
-              case 'dot':
-                ctx.beginPath();
-                ctx.arc(left + moduleSize / 2, top + moduleSize / 2, (moduleSize / 2) * 0.75, 0, 2 * Math.PI);
-                ctx.fill();
-                break;
-              case 'rounded':
-                 ctx.beginPath();
-                 ctx.roundRect(left, top, moduleSize, moduleSize, [moduleSize * 0.5]);
-                 ctx.fill();
-                break;
-              default: // square
-                ctx.fillRect(left, top, moduleSize, moduleSize);
-                break;
+              if (isFinderPattern(x, y, moduleCount)) {
+                tempCtx.fillStyle = pixelFillStyle; // Always use solid color for finder patterns
+                tempCtx.fillRect(left, top, moduleSize, moduleSize);
+                continue;
+              }
+
+              switch(design.pixelStyle) {
+                case 'dot':
+                  tempCtx.beginPath();
+                  tempCtx.arc(left + moduleSize / 2, top + moduleSize / 2, (moduleSize / 2) * 0.75, 0, 2 * Math.PI);
+                  tempCtx.fill();
+                  break;
+                case 'rounded':
+                   tempCtx.beginPath();
+                   tempCtx.roundRect(left, top, moduleSize, moduleSize, [moduleSize * 0.25]);
+                   tempCtx.fill();
+                  break;
+                default: // square
+                  tempCtx.fillRect(left, top, moduleSize, moduleSize);
+                  break;
+              }
             }
           }
         }
-
-        // Draw custom eyes
-        const eyeRadius = design.eyeRadius;
-        const eyePositions = [
-          [0, 0],
-          [moduleCount - 7, 0],
-          [0, moduleCount - 7]
-        ];
-
-        eyePositions.forEach(([x, y]) => {
-          const top = y * moduleSize;
-          const left = x * moduleSize;
-          
-          const outerSize = 7 * moduleSize;
-          const innerSize = 3 * moduleSize;
-          const innerOffset = 2 * moduleSize;
-
-          // Outer shape
-          ctx.fillStyle = pixelFillStyle;
-          ctx.beginPath();
-          ctx.roundRect(left, top, outerSize, outerSize, [eyeRadius]);
-          ctx.fill();
-
-          // Inner shape (hole)
-          ctx.save();
-          ctx.beginPath();
-          ctx.roundRect(left + moduleSize, top + moduleSize, outerSize - 2 * moduleSize, outerSize - 2 * moduleSize, [eyeRadius > 0 ? eyeRadius * 0.8 : 0]);
-          ctx.clip();
-          ctx.clearRect(left,top, outerSize, outerSize);
-          ctx.restore();
-          
-          // Innermost point
-          ctx.fillStyle = pixelFillStyle;
-          ctx.beginPath();
-          ctx.roundRect(left + innerOffset, top + innerOffset, innerSize, innerSize, [eyeRadius > 0 ? eyeRadius * 0.5 : 0]);
-          ctx.fill();
-        });
-
-        resolve(canvas.toDataURL('image/png'));
+        
+        // Clear original canvas and draw temp canvas onto it
+        ctx.clearRect(0,0, canvasSize, canvasSize);
+        if (design.useImage && bgImage) {
+            const img = new Image();
+            img.onload = () => {
+              ctx.drawImage(img, 0, 0, canvasSize, canvasSize);
+              ctx.drawImage(tempCanvas, 0, 0);
+              resolve(canvas.toDataURL('image/png'));
+            };
+            img.src = bgImage;
+        } else {
+             ctx.drawImage(tempCanvas, 0, 0);
+             resolve(canvas.toDataURL('image/png'));
+        }
       });
     });
   };
@@ -220,8 +239,21 @@ export default function QrArtStudio() {
 
       for (const design of designs) {
         let qrCodeDataUrl: string;
-
-        qrCodeDataUrl = await drawCustomQr(qrData, design, design.useImage ? backgroundImage : null);
+        
+        if (design.pixelStyle === 'square' && !design.useImage && !design.pixelGradientStart) {
+            // Use fast, simple generation for basic square QR codes
+            qrCodeDataUrl = await QRCode.toDataURL(content, {
+                errorCorrectionLevel: 'H',
+                width: QR_IMG_SIZE,
+                color: {
+                    dark: design.pixelColor,
+                    light: design.backgroundColor,
+                },
+            });
+        } else {
+            // Use advanced canvas drawing for custom styles, gradients, or images
+            qrCodeDataUrl = await drawCustomQr(qrData, design, design.useImage ? backgroundImage : null);
+        }
 
         const templateResponse = await fetch(design.template);
         if (!templateResponse.ok) {
@@ -567,5 +599,3 @@ export default function QrArtStudio() {
     </div>
   );
 }
-
-    
