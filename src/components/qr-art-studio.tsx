@@ -79,6 +79,42 @@ export default function QrArtStudio() {
     }
   };
   
+  const generateQrWithImageBg = (content: string, options: QRCode.QRCodeToDataURLOptions, bgImage: string): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const canvas = document.createElement('canvas');
+      canvas.width = options.width || QR_IMG_SIZE;
+      canvas.height = options.width || QR_IMG_SIZE;
+      const ctx = canvas.getContext('2d');
+
+      if (!ctx) {
+        return reject(new Error('Could not get canvas context'));
+      }
+
+      const img = new Image();
+      img.onload = async () => {
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        
+        // Generate QR code with transparent background
+        const qrImage = new Image();
+        qrImage.onload = () => {
+          ctx.drawImage(qrImage, 0, 0);
+          resolve(canvas.toDataURL('image/png'));
+        };
+        qrImage.onerror = reject;
+        const transparentQrOptions = {
+          ...options,
+          color: {
+            ...options.color,
+            light: '#00000000', // Ensure QR background is transparent
+          }
+        };
+        qrImage.src = await QRCode.toDataURL(content, transparentQrOptions);
+      };
+      img.onerror = reject;
+      img.src = bgImage;
+    });
+  }
+
   const handleGenerate = async () => {
     if (!content) {
       toast({ variant: "destructive", title: "Error", description: "Content cannot be empty." });
@@ -92,10 +128,7 @@ export default function QrArtStudio() {
       const qrResults: GeneratedQr[] = [];
 
       for (const design of designs) {
-        if (design.useImage && !backgroundImage) {
-          toast({ variant: "destructive", title: `Skipping ${design.name}`, description: "Please select a background image first." });
-          continue;
-        }
+        let qrCodeDataUrl: string;
 
         const qrOptions: QRCode.QRCodeToDataURLOptions = {
           errorCorrectionLevel: 'H',
@@ -103,14 +136,18 @@ export default function QrArtStudio() {
           margin: 1,
           color: {
             dark: design.pixelColor,
-            light: design.useImage ? '#00000000' : design.backgroundColor,
+            light: design.backgroundColor,
           },
         };
-        
-        // The qrcode library doesn't support different eye colors directly.
-        // This is a limitation we'll accept for now. A more advanced implementation
-        // would involve custom drawing on a canvas.
-        const qrCodeDataUrl = await QRCode.toDataURL(content, qrOptions);
+
+        if (design.useImage && backgroundImage) {
+          qrCodeDataUrl = await generateQrWithImageBg(content, qrOptions, backgroundImage);
+        } else {
+          // The qrcode library doesn't support different eye colors directly.
+          // This is a limitation we'll accept for now. A more advanced implementation
+          // would involve custom drawing on a canvas.
+          qrCodeDataUrl = await QRCode.toDataURL(content, qrOptions);
+        }
 
         const templateResponse = await fetch(design.template);
         if (!templateResponse.ok) {
@@ -122,13 +159,8 @@ export default function QrArtStudio() {
         // 1. Replace QR Code placeholder
         svgText = svgText.replace(/(<image[^>]*id="qr-code-image"[^>]*href=")[^"]*(")/g, `$1${qrCodeDataUrl}$2`);
         svgText = svgText.replace(/(<image[^>]*xlink:href=")[^"]*(")/g, `$1${qrCodeDataUrl}$2`);
-
-        // 2. Replace background image if needed
-        if (design.useImage && backgroundImage) {
-          svgText = svgText.replace(/(<image[^>]*id="background-image"[^>]*href=")[^"]*(")/g, `$1${backgroundImage}$2`);
-        }
         
-        // 3. Replace text placeholder
+        // 2. Replace text placeholder
         if (design.text) {
            svgText = svgText.replace(/>TEXT</g, `>${design.text}<`);
         }
@@ -303,7 +335,7 @@ export default function QrArtStudio() {
                         checked={design.useImage}
                         onCheckedChange={(checked) => updateDesign(design.id, { useImage: checked })}
                     />
-                    <Label htmlFor={`use-image-${design.id}`}>Use Background Image in SVG</Label>
+                    <Label htmlFor={`use-image-${design.id}`}>Use Uploaded Image as QR Background</Label>
                 </div>
 
                 <Button variant="destructive" size="sm" onClick={() => removeDesign(design.id)}><Trash2 className="mr-2"/> Remove Design</Button>
@@ -369,7 +401,7 @@ export default function QrArtStudio() {
                           </div>
                        }
                   </div>
-                  <p className="text-sm text-muted-foreground">Used by designs where "Use Background Image" is enabled.</p>
+                  <p className="text-sm text-muted-foreground">Used by designs where "Use Uploaded Image as QR Background" is enabled.</p>
               </div>
             </CardContent>
             <CardFooter>
@@ -422,3 +454,5 @@ export default function QrArtStudio() {
     </div>
   );
 }
+
+    
