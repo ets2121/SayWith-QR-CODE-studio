@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -88,11 +89,11 @@ export default function QrArtStudio() {
       canvas.height = canvasSize;
       const ctx = canvas.getContext('2d');
       if (!ctx) return reject('Could not get canvas context');
-
+  
       const modules = qrData.modules.data;
       const moduleCount = qrData.modules.size;
       const moduleSize = canvasSize / moduleCount;
-
+  
       const drawBackground = () => {
         return new Promise<void>((bgResolve) => {
           if (design.useImage && bgImage) {
@@ -109,28 +110,27 @@ export default function QrArtStudio() {
             img.src = bgImage;
           } else {
             if (design.bgGradientStart && design.bgGradientEnd) {
-                const gradient = ctx.createLinearGradient(0, 0, canvasSize, canvasSize);
-                gradient.addColorStop(0, design.bgGradientStart);
-                gradient.addColorStop(1, design.bgGradientEnd);
-                ctx.fillStyle = gradient;
+              const gradient = ctx.createLinearGradient(0, 0, canvasSize, canvasSize);
+              gradient.addColorStop(0, design.bgGradientStart);
+              gradient.addColorStop(1, design.bgGradientEnd);
+              ctx.fillStyle = gradient;
             } else {
-                ctx.fillStyle = design.backgroundColor;
+              ctx.fillStyle = design.backgroundColor;
             }
             ctx.fillRect(0, 0, canvasSize, canvasSize);
             bgResolve();
           }
         });
       };
-      
+  
       const isFinderPattern = (x: number, y: number, moduleCount: number): boolean => {
         if (x < 7 && y < 7) return true; // Top-left eye
         if (x >= moduleCount - 7 && y < 7) return true; // Top-right eye
         if (x < 7 && y >= moduleCount - 7) return true; // Bottom-left eye
         return false;
       };
-
+  
       drawBackground().then(() => {
-        // Prepare pixel fill style
         let pixelFillStyle: string | CanvasGradient = design.pixelColor;
         if (design.pixelGradientStart && design.pixelGradientEnd) {
           const gradient = ctx.createLinearGradient(0, 0, canvasSize, canvasSize);
@@ -138,34 +138,51 @@ export default function QrArtStudio() {
           gradient.addColorStop(1, design.pixelGradientEnd);
           pixelFillStyle = gradient;
         }
-        
-        // Draw the QR modules
+  
         for (let y = 0; y < moduleCount; y++) {
           for (let x = 0; x < moduleCount; x++) {
             const index = y * moduleCount + x;
-            if (modules[index]) {
-              const isFinder = isFinderPattern(x, y, moduleCount);
-              ctx.fillStyle = isFinder ? design.pixelColor : pixelFillStyle;
-              
-              const top = y * moduleSize;
-              const left = x * moduleSize;
-
-              // For image backgrounds, we just draw the dark modules and leave the light ones transparent to show the image.
-              // For solid/gradient backgrounds, the background is already drawn, so we do the same.
-              switch(design.pixelStyle) {
-                case 'dot':
-                  ctx.beginPath();
-                  ctx.arc(left + moduleSize / 2, top + moduleSize / 2, (moduleSize / 2) * 0.75, 0, 2 * Math.PI);
-                  ctx.fill();
-                  break;
-                case 'rounded':
+            const isDark = modules[index];
+            const isFinder = isFinderPattern(x, y, moduleCount);
+            
+            const top = y * moduleSize;
+            const left = x * moduleSize;
+  
+            if (isFinder) {
+              if (isDark) {
+                ctx.fillStyle = design.pixelColor;
+                ctx.fillRect(left, top, moduleSize, moduleSize);
+              } else {
+                 // Leave empty for finder pattern background
+              }
+            } else {
+              if (isDark) {
+                ctx.fillStyle = pixelFillStyle;
+                switch (design.pixelStyle) {
+                  case 'dot':
+                    ctx.beginPath();
+                    ctx.arc(left + moduleSize / 2, top + moduleSize / 2, (moduleSize / 2) * 0.9, 0, 2 * Math.PI);
+                    ctx.fill();
+                    break;
+                  case 'rounded':
+                    ctx.beginPath();
+                    ctx.roundRect(left, top, moduleSize, moduleSize, [moduleSize * 0.25]);
+                    ctx.fill();
+                    break;
+                  default: // square
+                    ctx.fillRect(left, top, moduleSize, moduleSize);
+                    break;
+                }
+              } else {
+                // For dot style, add a tiny center dot to light modules to help scanners
+                if (design.pixelStyle === 'dot') {
+                  ctx.fillStyle = design.backgroundColor;
+                   ctx.globalAlpha = 0.2;
                    ctx.beginPath();
-                   ctx.roundRect(left, top, moduleSize, moduleSize, [moduleSize * 0.25]);
+                   ctx.arc(left + moduleSize / 2, top + moduleSize / 2, (moduleSize / 2) * 0.1, 0, 2 * Math.PI);
                    ctx.fill();
-                  break;
-                default: // square
-                  ctx.fillRect(left, top, moduleSize, moduleSize);
-                  break;
+                   ctx.globalAlpha = 1.0;
+                }
               }
             }
           }
@@ -191,8 +208,12 @@ export default function QrArtStudio() {
       for (const design of designs) {
         let qrCodeDataUrl: string;
         
-        if (design.pixelStyle === 'square' && !design.useImage && !design.pixelGradientStart && !design.bgGradientStart) {
-            // Use fast, simple generation for basic square QR codes
+        const useSimpleGenerator = design.pixelStyle === 'square' && 
+                                   !design.useImage && 
+                                   !design.pixelGradientStart && 
+                                   !design.bgGradientStart;
+
+        if (useSimpleGenerator) {
             qrCodeDataUrl = await QRCode.toDataURL(content, {
                 errorCorrectionLevel: 'H',
                 width: QR_IMG_SIZE,
@@ -202,7 +223,6 @@ export default function QrArtStudio() {
                 },
             });
         } else {
-            // Use advanced canvas drawing for custom styles, gradients, or images
             qrCodeDataUrl = await drawCustomQr(qrData, design, design.useImage ? backgroundImage : null);
         }
 
@@ -216,6 +236,11 @@ export default function QrArtStudio() {
         // 1. Replace QR Code placeholder
         svgText = svgText.replace(/(<image[^>]*id="qr-code-image"[^>]*href=")[^"]*(")/g, `$1${qrCodeDataUrl}$2`);
         svgText = svgText.replace(/(<image[^>]*xlink:href=")[^"]*(")/g, `$1${qrCodeDataUrl}$2`);
+
+        // If using a background image, embed it in the SVG
+        if (design.useImage && backgroundImage) {
+           svgText = svgText.replace(/(<image[^>]*id="background-image"[^>]*href=")[^"]*(")/g, `$1${backgroundImage}$2`);
+        }
         
         // 2. Replace text placeholder and color
         if (design.text) {
@@ -550,3 +575,5 @@ export default function QrArtStudio() {
     </div>
   );
 }
+
+    
