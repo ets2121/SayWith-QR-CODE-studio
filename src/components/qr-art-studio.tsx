@@ -44,9 +44,28 @@ export default function QrArtStudio() {
         });
       });
       
-    // For now, we'll use a hardcoded list of templates.
-    // A more dynamic solution would require a server-side API endpoint to list files.
-    setSvgTemplates(['/templates/template1.svg']);
+    // Fetch SVG templates
+    fetch('/api/templates')
+      .then((res) => res.json())
+      .then((data: string[]) => {
+        if (data.length > 0) {
+          setSvgTemplates(data);
+        } else {
+          setSvgTemplates(['/templates/template1.svg']); // Fallback
+          toast({
+            title: "No Templates Found",
+            description: "No SVG templates found in /public/templates. Using a default. Please add your own SVGs.",
+          });
+        }
+      })
+      .catch(() => {
+        setSvgTemplates(['/templates/template1.svg']); // Fallback
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Could not load SVG templates from the API.",
+        });
+      });
   }, [toast]);
 
   const handleBackgroundImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -234,7 +253,7 @@ export default function QrArtStudio() {
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
                         {svgTemplates.map(template => (
-                          <SelectItem key={template} value={template}>{template}</SelectItem>
+                          <SelectItem key={template} value={template}>{template.split('/').pop()}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
