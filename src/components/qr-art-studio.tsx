@@ -171,9 +171,12 @@ export default function QrArtStudio() {
         svgText = svgText.replace(/(<image[^>]*id="qr-code-image"[^>]*href=")[^"]*(")/g, `$1${qrCodeDataUrl}$2`);
         svgText = svgText.replace(/(<image[^>]*xlink:href=")[^"]*(")/g, `$1${qrCodeDataUrl}$2`);
         
-        // 2. Replace text placeholder
+        // 2. Replace text placeholder and color
         if (design.text) {
-           svgText = svgText.replace(/>TEXT</g, `>${design.text}<`);
+           svgText = svgText.replace(/(<text[^>]*>)\s*TEXT\s*(<\/text>)/g, `$1${design.text}$2`);
+           if (design.foregroundColor) {
+             svgText = svgText.replace(/(<text[^>]*fill=")[^"]*(")/g, `$1${design.foregroundColor}$2`);
+           }
         }
 
         qrResults.push({
@@ -243,6 +246,7 @@ export default function QrArtStudio() {
       pixelStyle: "square",
       pixelColor: "#000000",
       backgroundColor: "#FFFFFF",
+      foregroundColor: "#000000",
       eyeColor: "#000000",
       text: "Your Text Here",
       useImage: false
@@ -314,10 +318,14 @@ export default function QrArtStudio() {
                     </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                   <div>
                     <Label>Pixel Color</Label>
                     <Input type="color" value={design.pixelColor} onChange={(e) => updateDesign(design.id, { pixelColor: e.target.value })} className="p-1 h-10"/>
+                  </div>
+                  <div>
+                    <Label>Foreground Color</Label>
+                    <Input type="color" value={design.foregroundColor} onChange={(e) => updateDesign(design.id, { foregroundColor: e.target.value })} className="p-1 h-10"/>
                   </div>
                   <div>
                     <Label>Eye Color</Label>
