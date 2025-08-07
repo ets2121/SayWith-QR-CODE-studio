@@ -165,7 +165,6 @@ export default function QrArtStudio() {
 
         // Draw custom eyes
         const eyeRadius = design.eyeRadius;
-        const eyeSize = 7 * moduleSize;
         const eyePositions = [
           [0, 0],
           [moduleCount - 7, 0],
@@ -187,14 +186,17 @@ export default function QrArtStudio() {
           ctx.fill();
 
           // Inner shape (hole)
-          ctx.fillStyle = design.backgroundColor;
-          if (design.useImage && bgImage) {
-            // This is tricky. For simplicity, we fill with a solid color.
-            // A more complex solution would involve clipping.
-            ctx.fillStyle = '#FFFFFF'; // Default to white if image is used
-          }
+          ctx.save();
           ctx.beginPath();
-          ctx.roundRect(left + innerOffset, top + innerOffset, innerSize, innerSize, [eyeRadius * 0.5]);
+          ctx.roundRect(left + moduleSize, top + moduleSize, outerSize - 2 * moduleSize, outerSize - 2 * moduleSize, [eyeRadius > 0 ? eyeRadius * 0.8 : 0]);
+          ctx.clip();
+          ctx.clearRect(left,top, outerSize, outerSize);
+          ctx.restore();
+          
+          // Innermost point
+          ctx.fillStyle = pixelFillStyle;
+          ctx.beginPath();
+          ctx.roundRect(left + innerOffset, top + innerOffset, innerSize, innerSize, [eyeRadius > 0 ? eyeRadius * 0.5 : 0]);
           ctx.fill();
         });
 
