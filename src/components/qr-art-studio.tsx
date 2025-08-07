@@ -236,11 +236,6 @@ export default function QrArtStudio() {
         // 1. Replace QR Code placeholder
         svgText = svgText.replace(/(<image[^>]*id="qr-code-image"[^>]*href=")[^"]*(")/g, `$1${qrCodeDataUrl}$2`);
         svgText = svgText.replace(/(<image[^>]*xlink:href=")[^"]*(")/g, `$1${qrCodeDataUrl}$2`);
-
-        // If using a background image, embed it in the SVG
-        if (design.useImage && backgroundImage) {
-           svgText = svgText.replace(/(<image[^>]*id="background-image"[^>]*href=")[^"]*(")/g, `$1${backgroundImage}$2`);
-        }
         
         // 2. Replace text placeholder and color
         if (design.text) {
