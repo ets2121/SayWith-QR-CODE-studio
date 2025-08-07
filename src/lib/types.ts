@@ -1,12 +1,13 @@
+
 export interface Design {
   id: number;
   name: string;
   template: string; // Path to the SVG template
-  pixelStyle: 'square' | 'rounded' | 'dot' | 'diamond';
+  pixelStyle: 'square' | 'rounded' | 'circle' | 'diamond';
   pixelColor: string;
   backgroundColor: string; // For the QR code itself, can be 'transparent'
   foregroundColor: string;
-  eyeStyle: 'square' | 'rounded' | 'circle' | 'diamond';
+  eyeStyle: 'square' | 'rounded' | 'circle' | 'diamond' | 'moon';
   eyeColor: string;
   eyeRadius: number; // Corner radius for the eyes
   padding: number; // Whitespace around the QR code

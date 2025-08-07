@@ -144,7 +144,6 @@ export default function QrArtStudio() {
         ctx.beginPath();
         switch (style) {
           case 'circle':
-          case 'dot': // dot is for backwards compatibility
             ctx.arc(left + size / 2, top + size / 2, (size / 2) * 0.9, 0, 2 * Math.PI);
             break;
           case 'diamond':
@@ -164,6 +163,54 @@ export default function QrArtStudio() {
         ctx.fill();
       }
 
+      const drawMoonEye = (cx: number, cy: number, size: number, rotation: number) => {
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.rotate(rotation);
+        ctx.fillStyle = design.eyeColor;
+
+        const eyeSize = size * 7;
+        const outerRadius = eyeSize / 2;
+        const innerRadius = outerRadius * 0.6;
+        const pupilRadius = innerRadius * 0.5;
+
+        // Outer shape
+        ctx.beginPath();
+        ctx.arc(0, 0, outerRadius, Math.PI * 0.6, Math.PI * 1.4);
+        ctx.arc(0, 0, outerRadius, Math.PI * 1.6, Math.PI * 0.4, true);
+        ctx.closePath();
+        ctx.fill();
+        
+        // Pupil
+        ctx.beginPath();
+        ctx.arc(0, 0, pupilRadius, 0, Math.PI * 2);
+        ctx.fillStyle = design.pixelColor; // Or a dedicated pupil color
+        ctx.fill();
+
+        ctx.restore();
+      };
+      
+      const drawStandardEye = (cornerX: number, cornerY: number) => {
+         for (let y = 0; y < 7; y++) {
+            for (let x = 0; x < 7; x++) {
+                const moduleX = cornerX + x;
+                const moduleY = cornerY + y;
+                const index = moduleY * moduleCount + moduleX;
+                const isDark = modules[index];
+
+                // Traditional finder pattern structure
+                const isOuter = x === 0 || x === 6 || y === 0 || y === 6;
+                const isInner = (x > 1 && x < 5) && (y > 1 && y < 5);
+
+                if (isDark) {
+                    ctx.fillStyle = design.eyeColor;
+                    drawModule(moduleX, moduleY, moduleSize, design.eyeStyle, design.eyeRadius);
+                }
+            }
+         }
+      };
+
+
       const clipCanvas = () => {
         if (design.canvasShape === 'circle') {
           ctx.globalCompositeOperation = 'destination-in';
@@ -182,23 +229,30 @@ export default function QrArtStudio() {
           gradient.addColorStop(1, design.pixelGradientEnd);
           pixelFillStyle = gradient;
         }
-  
+
+        // Draw pixel data
         for (let y = 0; y < moduleCount; y++) {
           for (let x = 0; x < moduleCount; x++) {
             const index = y * moduleCount + x;
-            if (!modules[index]) continue;
-
-            const isFinder = isFinderPattern(x, y, moduleCount);
+            if (!modules[index] || isFinderPattern(x, y, moduleCount)) continue;
             
-            if (isFinder) {
-              ctx.fillStyle = design.eyeColor;
-              drawModule(x, y, moduleSize, design.eyeStyle, design.eyeRadius);
-            } else {
-              ctx.fillStyle = pixelFillStyle;
-              drawModule(x, y, moduleSize, design.pixelStyle, moduleSize * 0.25);
-            }
+            ctx.fillStyle = pixelFillStyle;
+            drawModule(x, y, moduleSize, design.pixelStyle, moduleSize * 0.25);
           }
         }
+
+        // Draw finder patterns
+        if (design.eyeStyle === 'moon') {
+            const eyeSize = moduleSize * 7;
+            drawMoonEye(padding + eyeSize / 2, padding + eyeSize / 2, moduleSize, Math.PI / 4);
+            drawMoonEye(canvasSize - padding - eyeSize / 2, padding + eyeSize / 2, moduleSize, -Math.PI / 4);
+            drawMoonEye(padding + eyeSize / 2, canvasSize - padding - eyeSize / 2, moduleSize, Math.PI * 0.75);
+        } else {
+            drawStandardEye(0, 0); // Top-left
+            drawStandardEye(moduleCount - 7, 0); // Top-right
+            drawStandardEye(0, moduleCount - 7); // Bottom-left
+        }
+
         clipCanvas();
         resolve(canvas.toDataURL('image/png'));
       });
@@ -400,7 +454,7 @@ export default function QrArtStudio() {
                         <SelectContent>
                           <SelectItem value="square">Square</SelectItem>
                           <SelectItem value="rounded">Rounded</SelectItem>
-                          <SelectItem value="dot">Dot</SelectItem>
+                          <SelectItem value="circle">Circle</SelectItem>
                           <SelectItem value="diamond">Diamond</SelectItem>
                         </SelectContent>
                       </Select>
@@ -450,6 +504,7 @@ export default function QrArtStudio() {
                                 <SelectItem value="rounded">Rounded</SelectItem>
                                 <SelectItem value="circle">Circle</SelectItem>
                                 <SelectItem value="diamond">Diamond</SelectItem>
+                                <SelectItem value="moon">Moon</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
