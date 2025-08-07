@@ -6,7 +6,7 @@ export interface Design {
   pixelColor: string;
   backgroundColor: string; // For the QR code itself, can be 'transparent'
   foregroundColor: string;
-  eyeColor: string; // Not implemented yet
+  eyeColor: string;
   eyeRadius: number; // Corner radius for the eyes
   text?: string;
   useImage?: boolean;

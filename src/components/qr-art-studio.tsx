@@ -34,7 +34,6 @@ export default function QrArtStudio() {
   const previewContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    // Fetch designs
     fetch('/designs.json')
       .then((res) => res.json())
       .then((data: Design[]) => setDesigns(data))
@@ -46,14 +45,13 @@ export default function QrArtStudio() {
         });
       });
       
-    // Fetch SVG templates
     fetch('/api/templates')
       .then((res) => res.json())
       .then((data: string[]) => {
         if (data.length > 0) {
           setSvgTemplates(data);
         } else {
-          setSvgTemplates(['/templates/template1.svg']); // Fallback
+          setSvgTemplates(['/templates/template1.svg']);
           toast({
             title: "No Templates Found",
             description: "No SVG templates found in /public/templates. Using a default. Please add your own SVGs.",
@@ -61,7 +59,7 @@ export default function QrArtStudio() {
         }
       })
       .catch(() => {
-        setSvgTemplates(['/templates/template1.svg']); // Fallback
+        setSvgTemplates(['/templates/template1.svg']);
         toast({
           variant: "destructive",
           title: "Error",
@@ -124,9 +122,9 @@ export default function QrArtStudio() {
       };
   
       const isFinderPattern = (x: number, y: number, moduleCount: number): boolean => {
-        if (x < 7 && y < 7) return true; // Top-left eye
-        if (x >= moduleCount - 7 && y < 7) return true; // Top-right eye
-        if (x < 7 && y >= moduleCount - 7) return true; // Bottom-left eye
+        if (x < 7 && y < 7) return true;
+        if (x >= moduleCount - 7 && y < 7) return true;
+        if (x < 7 && y >= moduleCount - 7) return true;
         return false;
       };
   
@@ -142,48 +140,33 @@ export default function QrArtStudio() {
         for (let y = 0; y < moduleCount; y++) {
           for (let x = 0; x < moduleCount; x++) {
             const index = y * moduleCount + x;
-            const isDark = modules[index];
-            const isFinder = isFinderPattern(x, y, moduleCount);
-            
+            if (!modules[index]) continue;
+
             const top = y * moduleSize;
             const left = x * moduleSize;
-  
-            if (isFinder) {
-              if (isDark) {
-                ctx.fillStyle = design.pixelColor;
-                ctx.fillRect(left, top, moduleSize, moduleSize);
-              } else {
-                 // Leave empty for finder pattern background
-              }
+            
+            ctx.fillStyle = isFinderPattern(x, y, moduleCount) ? design.eyeColor : pixelFillStyle;
+
+            if (isFinderPattern(x, y, moduleCount)) {
+                ctx.beginPath();
+                ctx.roundRect(left, top, moduleSize, moduleSize, [design.eyeRadius]);
+                ctx.fill();
             } else {
-              if (isDark) {
-                ctx.fillStyle = pixelFillStyle;
                 switch (design.pixelStyle) {
-                  case 'dot':
+                    case 'dot':
                     ctx.beginPath();
                     ctx.arc(left + moduleSize / 2, top + moduleSize / 2, (moduleSize / 2) * 0.9, 0, 2 * Math.PI);
                     ctx.fill();
                     break;
-                  case 'rounded':
+                    case 'rounded':
                     ctx.beginPath();
                     ctx.roundRect(left, top, moduleSize, moduleSize, [moduleSize * 0.25]);
                     ctx.fill();
                     break;
-                  default: // square
+                    default: // square
                     ctx.fillRect(left, top, moduleSize, moduleSize);
                     break;
                 }
-              } else {
-                // For dot style, add a tiny center dot to light modules to help scanners
-                if (design.pixelStyle === 'dot') {
-                  ctx.fillStyle = design.backgroundColor;
-                   ctx.globalAlpha = 0.2;
-                   ctx.beginPath();
-                   ctx.arc(left + moduleSize / 2, top + moduleSize / 2, (moduleSize / 2) * 0.1, 0, 2 * Math.PI);
-                   ctx.fill();
-                   ctx.globalAlpha = 1.0;
-                }
-              }
             }
           }
         }
@@ -206,25 +189,7 @@ export default function QrArtStudio() {
       const qrData = QRCode.create(content, { errorCorrectionLevel: 'H' });
 
       for (const design of designs) {
-        let qrCodeDataUrl: string;
-        
-        const useSimpleGenerator = design.pixelStyle === 'square' && 
-                                   !design.useImage && 
-                                   !design.pixelGradientStart && 
-                                   !design.bgGradientStart;
-
-        if (useSimpleGenerator) {
-            qrCodeDataUrl = await QRCode.toDataURL(content, {
-                errorCorrectionLevel: 'H',
-                width: QR_IMG_SIZE,
-                color: {
-                    dark: design.pixelColor,
-                    light: design.backgroundColor,
-                },
-            });
-        } else {
-            qrCodeDataUrl = await drawCustomQr(qrData, design, design.useImage ? backgroundImage : null);
-        }
+        const qrCodeDataUrl = await drawCustomQr(qrData, design, design.useImage ? backgroundImage : null);
 
         const templateResponse = await fetch(design.template);
         if (!templateResponse.ok) {
@@ -233,10 +198,8 @@ export default function QrArtStudio() {
         }
         let svgText = await templateResponse.text();
 
-        // Replace the href attribute in the first <image> tag found.
         svgText = svgText.replace(/(<image[^>]*?(?:href|xlink:href)=")[^"]*(")/, `$1${qrCodeDataUrl}$2`);
         
-        // Replace text placeholder and color
         if (design.text) {
            svgText = svgText.replace(/(<text[^>]*>)\s*TEXT\s*(<\/text>)/g, `$1${design.text}$2`);
            if (design.foregroundColor) {
@@ -290,7 +253,6 @@ export default function QrArtStudio() {
         const design = designs.find(d => d.id === qr.designId);
         const designName = design ? design.name.replace(/[^a-z0-9]/gi, '_').toLowerCase() : `design_${i + 1}`;
         
-        // To convert SVG data URL to blob for zipping
         const response = await fetch(qr.svg);
         const blob = await response.blob();
         zip.file(`${designName}.svg`, blob);
@@ -406,33 +368,37 @@ export default function QrArtStudio() {
                         <p className="text-xs text-muted-foreground mt-1">Used if gradients are not set.</p>
                     </div>
                     <div>
+                        <Label>Eye Color</Label>
+                        <Input type="color" value={design.eyeColor} onChange={(e) => updateDesign(design.id, { eyeColor: e.target.value })} className="p-1 h-10"/>
+                    </div>
+                    <div>
                         <Label>QR Background Color</Label>
                         <Input type="color" value={design.backgroundColor} onChange={(e) => updateDesign(design.id, { backgroundColor: e.target.value, bgGradientStart: '', bgGradientEnd: '' })} className="p-1 h-10" disabled={design.useImage}/>
                         {design.useImage && <p className="text-xs text-muted-foreground mt-1">Disabled for image backgrounds.</p>}
                     </div>
                     <div>
+                        <Label>Foreground Color (for text)</Label>
+                        <Input type="color" value={design.foregroundColor || '#000000'} onChange={(e) => updateDesign(design.id, { foregroundColor: e.target.value })} className="p-1 h-10"/>
+                    </div>
+                    <div>
                         <Label>Pixel Gradient Start</Label>
-                        <Input type="color" value={design.pixelGradientStart || '#000000'} onChange={(e) => updateDesign(design.id, { pixelGradientStart: e.target.value })} className="p-1 h-10"/>
+                        <Input type="color" value={design.pixelGradientStart || ''} onChange={(e) => updateDesign(design.id, { pixelGradientStart: e.target.value })} className="p-1 h-10"/>
                     </div>
                      <div>
                         <Label>Pixel Gradient End</Label>
-                        <Input type="color" value={design.pixelGradientEnd || '#000000'} onChange={(e) => updateDesign(design.id, { pixelGradientEnd: e.target.value })} className="p-1 h-10"/>
+                        <Input type="color" value={design.pixelGradientEnd || ''} onChange={(e) => updateDesign(design.id, { pixelGradientEnd: e.target.value })} className="p-1 h-10"/>
                     </div>
                     <div>
                         <Label>BG Gradient Start</Label>
-                        <Input type="color" value={design.bgGradientStart || '#FFFFFF'} onChange={(e) => updateDesign(design.id, { bgGradientStart: e.target.value })} className="p-1 h-10" disabled={design.useImage}/>
+                        <Input type="color" value={design.bgGradientStart || ''} onChange={(e) => updateDesign(design.id, { bgGradientStart: e.target.value })} className="p-1 h-10" disabled={design.useImage}/>
                     </div>
                     <div>
                         <Label>BG Gradient End</Label>
-                        <Input type="color" value={design.bgGradientEnd || '#FFFFFF'} onChange={(e) => updateDesign(design.id, { bgGradientEnd: e.target.value })} className="p-1 h-10" disabled={design.useImage}/>
+                        <Input type="color" value={design.bgGradientEnd || ''} onChange={(e) => updateDesign(design.id, { bgGradientEnd: e.target.value })} className="p-1 h-10" disabled={design.useImage}/>
                     </div>
                 </div>
                 
                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                        <Label>Foreground Color (for text)</Label>
-                        <Input type="color" value={design.foregroundColor || '#000000'} onChange={(e) => updateDesign(design.id, { foregroundColor: e.target.value })} className="p-1 h-10"/>
-                    </div>
                     <div className="space-y-2">
                         <Label>Embedded Text</Label>
                         <Textarea
@@ -441,17 +407,15 @@ export default function QrArtStudio() {
                           placeholder="Enter text to embed in the SVG"
                         />
                     </div>
+                    <div className="flex items-start space-x-2 pt-6">
+                        <Switch
+                            id={`use-image-${design.id}`}
+                            checked={design.useImage}
+                            onCheckedChange={(checked) => updateDesign(design.id, { useImage: checked })}
+                        />
+                        <Label htmlFor={`use-image-${design.id}`} className="leading-tight">Use Uploaded Image as QR Background</Label>
+                    </div>
                  </div>
-
-
-                <div className="flex items-center space-x-2">
-                    <Switch
-                        id={`use-image-${design.id}`}
-                        checked={design.useImage}
-                        onCheckedChange={(checked) => updateDesign(design.id, { useImage: checked })}
-                    />
-                    <Label htmlFor={`use-image-${design.id}`}>Use Uploaded Image as QR Background</Label>
-                </div>
 
                 <Button variant="destructive" size="sm" onClick={() => removeDesign(design.id)}><Trash2 className="mr-2"/> Remove Design</Button>
               </AccordionContent>
