@@ -7,7 +7,8 @@ export interface Design {
   pixelColor: string;
   backgroundColor: string; // For the QR code itself, can be 'transparent'
   foregroundColor: string;
-  eyeStyle: 'square' | 'rounded' | 'circle' | 'diamond' | 'moon';
+  eyeShape: 'frame' | 'shield' | 'flower';
+  eyeStyle: 'square' | 'circle';
   eyeColor: string;
   eyeRadius: number; // Corner radius for the eyes
   padding: number; // Whitespace around the QR code

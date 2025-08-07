@@ -138,7 +138,7 @@ export default function QrArtStudio() {
         return false;
       };
 
-      const drawModule = (x: number, y: number, size: number, style: Design['pixelStyle'] | Design['eyeStyle'], radius: number) => {
+      const drawModule = (x: number, y: number, size: number, style: Design['pixelStyle']) => {
         const top = y * size + padding;
         const left = x * size + padding;
         ctx.beginPath();
@@ -154,7 +154,7 @@ export default function QrArtStudio() {
             ctx.closePath();
             break;
           case 'rounded':
-            ctx.roundRect(left, top, size, size, [radius]);
+             ctx.roundRect(left, top, size, size, [size * 0.25]);
             break;
           default: // square
             ctx.rect(left, top, size, size);
@@ -162,66 +162,78 @@ export default function QrArtStudio() {
         }
         ctx.fill();
       }
+      
+      const drawEye = (shape: Design['eyeShape'], style: Design['eyeStyle'], cornerX: number, cornerY: number) => {
+        const eyeSize = moduleSize * 7;
+        const cx = padding + cornerX * moduleSize + eyeSize / 2;
+        const cy = padding + cornerY * moduleSize + eyeSize / 2;
+        const pupilSize = moduleSize * 3;
 
-      const drawMoonEye = (cx: number, cy: number, size: number, rotation: number) => {
-        ctx.save();
-        ctx.translate(cx, cy);
-        ctx.rotate(rotation);
         ctx.fillStyle = design.eyeColor;
-
-        const eyeSize = size * 7;
-        const outerRadius = eyeSize / 2;
-        const innerRadius = outerRadius * 0.6;
-        const pupilRadius = innerRadius * 0.5;
-
-        // Outer shape
-        ctx.beginPath();
-        ctx.arc(0, 0, outerRadius, Math.PI * 0.6, Math.PI * 1.4);
-        ctx.arc(0, 0, outerRadius, Math.PI * 1.6, Math.PI * 0.4, true);
-        ctx.closePath();
+        
+        // Frame
+        switch(shape) {
+            case 'shield':
+                ctx.beginPath();
+                ctx.moveTo(cx, cy - eyeSize / 2);
+                ctx.lineTo(cx + eyeSize / 2, cy - eyeSize / 4);
+                ctx.lineTo(cx + eyeSize / 2, cy + eyeSize / 4);
+                ctx.bezierCurveTo(cx + eyeSize / 2, cy + eyeSize / 2, cx, cy + eyeSize/2, cx, cy + eyeSize/2);
+                ctx.bezierCurveTo(cx, cy + eyeSize / 2, cx - eyeSize / 2, cy + eyeSize / 2, cx - eyeSize / 2, cy + eyeSize/4);
+                ctx.lineTo(cx - eyeSize / 2, cy - eyeSize / 4);
+                ctx.closePath();
+                break;
+            case 'flower':
+                for(let i=0; i < 6; i++) {
+                    const angle = (i / 6) * 2 * Math.PI;
+                    ctx.beginPath();
+                    ctx.arc(cx + Math.cos(angle) * eyeSize/4, cy + Math.sin(angle) * eyeSize/4, eyeSize/4, 0, 2 * Math.PI);
+                    ctx.fill();
+                }
+                break;
+            default: // frame
+                const frameRadius = design.eyeRadius * (moduleSize / 8);
+                ctx.beginPath();
+                ctx.roundRect(cx - eyeSize / 2, cy - eyeSize / 2, eyeSize, eyeSize, [frameRadius]);
+                break;
+        }
         ctx.fill();
         
         // Pupil
-        ctx.beginPath();
-        ctx.arc(0, 0, pupilRadius, 0, Math.PI * 2);
-        ctx.fillStyle = design.pixelColor; // Or a dedicated pupil color
-        ctx.fill();
-
-        ctx.restore();
-      };
-      
-      const drawStandardEye = (cornerX: number, cornerY: number) => {
-         for (let y = 0; y < 7; y++) {
-            for (let x = 0; x < 7; x++) {
-                const moduleX = cornerX + x;
-                const moduleY = cornerY + y;
-                const index = moduleY * moduleCount + moduleX;
-                const isDark = modules[index];
-
-                // Traditional finder pattern structure
-                const isOuter = x === 0 || x === 6 || y === 0 || y === 6;
-                const isInner = (x > 1 && x < 5) && (y > 1 && y < 5);
-
-                if (isDark) {
-                    ctx.fillStyle = design.eyeColor;
-                    drawModule(moduleX, moduleY, moduleSize, design.eyeStyle, design.eyeRadius);
-                }
-            }
-         }
-      };
-
+        ctx.fillStyle = design.pixelColor;
+        switch(style) {
+            case 'circle':
+                 ctx.beginPath();
+                 ctx.arc(cx, cy, pupilSize/2, 0, 2*Math.PI);
+                 ctx.fill();
+                 break;
+            default: // square
+                const pupilRadius = design.eyeRadius * (moduleSize / 16);
+                ctx.beginPath();
+                ctx.roundRect(cx - pupilSize / 2, cy - pupilSize / 2, pupilSize, pupilSize, [pupilRadius]);
+                ctx.fill();
+                break;
+        }
+      }
 
       const clipCanvas = () => {
         if (design.canvasShape === 'circle') {
-          ctx.globalCompositeOperation = 'destination-in';
+          ctx.save();
           ctx.beginPath();
-          ctx.arc(canvasSize / 2, canvasSize / 2, canvasSize / 2, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.globalCompositeOperation = 'source-over';
+          ctx.arc(canvasSize / 2, canvasSize / 2, (canvasSize / 2) - 1, 0, Math.PI * 2);
+          ctx.clip();
+        }
+      }
+      
+      const unclipCanvas = () => {
+        if (design.canvasShape === 'circle') {
+            ctx.restore();
         }
       }
   
       drawBackground().then(() => {
+        clipCanvas();
+        
         let pixelFillStyle: string | CanvasGradient = design.pixelColor;
         if (design.pixelGradientStart && design.pixelGradientEnd) {
           const gradient = ctx.createLinearGradient(0, 0, canvasSize, canvasSize);
@@ -237,23 +249,17 @@ export default function QrArtStudio() {
             if (!modules[index] || isFinderPattern(x, y, moduleCount)) continue;
             
             ctx.fillStyle = pixelFillStyle;
-            drawModule(x, y, moduleSize, design.pixelStyle, moduleSize * 0.25);
+            drawModule(x, y, moduleSize, design.pixelStyle);
           }
         }
+        
+        unclipCanvas();
 
         // Draw finder patterns
-        if (design.eyeStyle === 'moon') {
-            const eyeSize = moduleSize * 7;
-            drawMoonEye(padding + eyeSize / 2, padding + eyeSize / 2, moduleSize, Math.PI / 4);
-            drawMoonEye(canvasSize - padding - eyeSize / 2, padding + eyeSize / 2, moduleSize, -Math.PI / 4);
-            drawMoonEye(padding + eyeSize / 2, canvasSize - padding - eyeSize / 2, moduleSize, Math.PI * 0.75);
-        } else {
-            drawStandardEye(0, 0); // Top-left
-            drawStandardEye(moduleCount - 7, 0); // Top-right
-            drawStandardEye(0, moduleCount - 7); // Bottom-left
-        }
+        drawEye(design.eyeShape, design.eyeStyle, 0, 0); // Top-left
+        drawEye(design.eyeShape, design.eyeStyle, moduleCount - 7, 0); // Top-right
+        drawEye(design.eyeShape, design.eyeStyle, 0, moduleCount - 7); // Bottom-left
 
-        clipCanvas();
         resolve(canvas.toDataURL('image/png'));
       });
     });
@@ -276,6 +282,7 @@ export default function QrArtStudio() {
         let qrCodeDataUrl: string;
         
         const useSimpleGenerator = design.pixelStyle === 'square' &&
+                                   design.eyeShape === 'frame' &&
                                    design.eyeStyle === 'square' &&
                                    design.canvasShape === 'square' &&
                                    !design.useImage && 
@@ -381,6 +388,7 @@ export default function QrArtStudio() {
       pixelColor: "#000000",
       backgroundColor: "#FFFFFF",
       foregroundColor: "#000000",
+      eyeShape: 'frame',
       eyeStyle: 'square',
       eyeColor: "#000000",
       eyeRadius: 8,
@@ -496,25 +504,33 @@ export default function QrArtStudio() {
                     <h4 className="font-semibold text-lg">Eye Customization</h4>
                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
-                            <Label>Eye Style</Label>
+                            <Label>Eye Shape</Label>
+                            <Select value={design.eyeShape} onValueChange={(v: Design['eyeShape']) => updateDesign(design.id, { eyeShape: v })}>
+                                <SelectTrigger><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="frame">Frame</SelectItem>
+                                    <SelectItem value="shield">Shield</SelectItem>
+                                    <SelectItem value="flower">Flower</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                         <div>
+                            <Label>Eye Pupil Style</Label>
                             <Select value={design.eyeStyle} onValueChange={(v: Design['eyeStyle']) => updateDesign(design.id, { eyeStyle: v })}>
                                 <SelectTrigger><SelectValue /></SelectTrigger>
                                 <SelectContent>
-                                <SelectItem value="square">Square</SelectItem>
-                                <SelectItem value="rounded">Rounded</SelectItem>
-                                <SelectItem value="circle">Circle</SelectItem>
-                                <SelectItem value="diamond">Diamond</SelectItem>
-                                <SelectItem value="moon">Moon</SelectItem>
+                                    <SelectItem value="square">Square</SelectItem>
+                                    <SelectItem value="circle">Circle</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
                         <div>
-                            <Label>Eye Color</Label>
+                            <Label>Eye Color (Frame)</Label>
                             <Input type="color" value={design.eyeColor} onChange={(e) => updateDesign(design.id, { eyeColor: e.target.value })} className="p-1 h-10"/>
                         </div>
                     </div>
                     <div>
-                        <Label>Eye Radius (for 'Rounded' style)</Label>
+                        <Label>Eye Radius (for 'Frame' shape)</Label>
                         <div className="flex items-center gap-4">
                             <Slider
                             value={[design.eyeRadius]}
@@ -530,7 +546,7 @@ export default function QrArtStudio() {
                 {/* Color Settings */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
                     <div>
-                        <Label>Pixel Color</Label>
+                        <Label>Pixel Color (also for Eye Pupil)</Label>
                         <Input type="color" value={design.pixelColor} onChange={(e) => updateDesign(design.id, { pixelColor: e.target.value, pixelGradientStart: '', pixelGradientEnd: '' })} className="p-1 h-10"/>
                         <p className="text-xs text-muted-foreground mt-1">Used if gradients are not set.</p>
                     </div>
