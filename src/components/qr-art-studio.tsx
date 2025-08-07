@@ -17,6 +17,7 @@ import { QrCode, Palette, Download, Trash2, Plus, Settings, Loader2, Image as Im
 import { Skeleton } from './ui/skeleton';
 import { Switch } from './ui/switch';
 import { Textarea } from './ui/textarea';
+import { Slider } from './ui/slider';
 
 const QR_IMG_SIZE = 512;
 
@@ -79,41 +80,107 @@ export default function QrArtStudio() {
     }
   };
   
-  const generateQrWithImageBg = (content: string, options: QRCode.QRCodeToDataURLOptions, bgImage: string): Promise<string> => {
+  const drawCustomQr = (qrData: QRCode.QRCode, design: Design, bgImage: string | null): Promise<string> => {
     return new Promise((resolve, reject) => {
       const canvas = document.createElement('canvas');
-      canvas.width = options.width || QR_IMG_SIZE;
-      canvas.height = options.width || QR_IMG_SIZE;
+      const canvasSize = QR_IMG_SIZE;
+      canvas.width = canvasSize;
+      canvas.height = canvasSize;
       const ctx = canvas.getContext('2d');
+      if (!ctx) return reject('Could not get canvas context');
 
-      if (!ctx) {
-        return reject(new Error('Could not get canvas context'));
-      }
+      const modules = qrData.modules.data;
+      const moduleCount = qrData.modules.size;
+      const moduleSize = canvasSize / moduleCount;
 
-      const img = new Image();
-      img.onload = async () => {
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        
-        // Generate QR code with transparent background
-        const qrImage = new Image();
-        qrImage.onload = () => {
-          ctx.drawImage(qrImage, 0, 0);
-          resolve(canvas.toDataURL('image/png'));
-        };
-        qrImage.onerror = reject;
-        const transparentQrOptions: QRCode.QRCodeToDataURLOptions = {
-          ...options,
-          color: {
-            ...options.color,
-            light: '#00000000', // Ensure QR background is transparent
+      const drawCanvasBg = () => {
+        return new Promise<void>((bgResolve) => {
+          if (design.useImage && bgImage) {
+            const img = new Image();
+            img.onload = () => {
+              ctx.drawImage(img, 0, 0, canvasSize, canvasSize);
+              bgResolve();
+            };
+            img.onerror = () => bgResolve(); // Continue even if image fails
+            img.src = bgImage;
+          } else {
+            if (design.bgGradientStart && design.bgGradientEnd) {
+              const gradient = ctx.createLinearGradient(0, 0, canvasSize, canvasSize);
+              gradient.addColorStop(0, design.bgGradientStart);
+              gradient.addColorStop(1, design.bgGradientEnd);
+              ctx.fillStyle = gradient;
+            } else {
+              ctx.fillStyle = design.backgroundColor;
+            }
+            ctx.fillRect(0, 0, canvasSize, canvasSize);
+            bgResolve();
           }
-        };
-        qrImage.src = await QRCode.toDataURL(content, transparentQrOptions);
+        });
       };
-      img.onerror = reject;
-      img.src = bgImage;
+
+      drawCanvasBg().then(() => {
+        // Set Pixel Color/Gradient
+        let pixelFillStyle: string | CanvasGradient = design.pixelColor;
+        if (design.pixelGradientStart && design.pixelGradientEnd) {
+          const gradient = ctx.createLinearGradient(0, 0, canvasSize, canvasSize);
+          gradient.addColorStop(0, design.pixelGradientStart);
+          gradient.addColorStop(1, design.pixelGradientEnd);
+          pixelFillStyle = gradient;
+        }
+        
+        // Draw modules
+        for (let y = 0; y < moduleCount; y++) {
+          for (let x = 0; x < moduleCount; x++) {
+            const index = y * moduleCount + x;
+            if (!modules[index]) continue;
+
+            const isEye = (x < 7 && y < 7) || (x > moduleCount - 8 && y < 7) || (x < 7 && y > moduleCount - 8);
+            if (isEye) continue; // Skip drawing default eyes, we'll draw them custom
+
+            ctx.fillStyle = pixelFillStyle;
+            const top = y * moduleSize;
+            const left = x * moduleSize;
+
+            switch(design.pixelStyle) {
+              case 'dot':
+                ctx.beginPath();
+                ctx.arc(left + moduleSize / 2, top + moduleSize / 2, (moduleSize / 2) * 0.75, 0, 2 * Math.PI);
+                ctx.fill();
+                break;
+              case 'rounded':
+                 ctx.beginPath();
+                 ctx.roundRect(left, top, moduleSize, moduleSize, [moduleSize * 0.5]);
+                 ctx.fill();
+                break;
+              default: // square
+                ctx.fillRect(left, top, moduleSize, moduleSize);
+                break;
+            }
+          }
+        }
+
+        // Draw custom eyes
+        ctx.fillStyle = pixelFillStyle;
+        const eyeRadius = design.eyeRadius;
+        const eyeSize = 7 * moduleSize;
+        const eyePositions = [
+          [0, 0],
+          [moduleCount - 7, 0],
+          [0, moduleCount - 7]
+        ];
+
+        eyePositions.forEach(([x, y]) => {
+          const top = y * moduleSize;
+          const left = x * moduleSize;
+          ctx.beginPath();
+          ctx.roundRect(left, top, eyeSize, eyeSize, [eyeRadius]);
+          ctx.fill();
+        });
+
+        resolve(canvas.toDataURL('image/png'));
+      });
     });
-  }
+  };
 
   const handleGenerate = async () => {
     if (!content) {
@@ -126,39 +193,12 @@ export default function QrArtStudio() {
 
     try {
       const qrResults: GeneratedQr[] = [];
+      const qrData = QRCode.create(content, { errorCorrectionLevel: 'H' });
 
       for (const design of designs) {
         let qrCodeDataUrl: string;
 
-        const baseQrOptions: QRCode.QRCodeToDataURLOptions = {
-          errorCorrectionLevel: 'H',
-          width: QR_IMG_SIZE,
-          margin: 1,
-        };
-
-        if (design.useImage && backgroundImage) {
-          const qrOptionsForImage: QRCode.QRCodeToDataURLOptions = {
-            ...baseQrOptions,
-            color: {
-              dark: design.pixelColor,
-              light: '#00000000', // Transparent background for image overlay
-            },
-          };
-          qrCodeDataUrl = await generateQrWithImageBg(content, qrOptionsForImage, backgroundImage);
-        } else {
-          // Standard generation with background and pixel colors
-          const qrOptionsStandard: QRCode.QRCodeToDataURLOptions = {
-            ...baseQrOptions,
-            color: {
-              dark: design.pixelColor,
-              light: design.backgroundColor,
-            },
-          };
-          // The qrcode library doesn't support different eye colors directly.
-          // This is a limitation we'll accept for now. A more advanced implementation
-          // would involve custom drawing on a canvas.
-          qrCodeDataUrl = await QRCode.toDataURL(content, qrOptionsStandard);
-        }
+        qrCodeDataUrl = await drawCustomQr(qrData, design, design.useImage ? backgroundImage : null);
 
         const templateResponse = await fetch(design.template);
         if (!templateResponse.ok) {
@@ -248,8 +288,13 @@ export default function QrArtStudio() {
       backgroundColor: "#FFFFFF",
       foregroundColor: "#000000",
       eyeColor: "#000000",
+      eyeRadius: 8,
       text: "Your Text Here",
-      useImage: false
+      useImage: false,
+      pixelGradientStart: "",
+      pixelGradientEnd: "",
+      bgGradientStart: "",
+      bgGradientEnd: ""
     };
     setDesigns([...designs, newDesign]);
   };
@@ -263,8 +308,6 @@ export default function QrArtStudio() {
   };
   
   const saveDesignsToJson = () => {
-    // This is a client-side "save". It prepares a file for the user to download.
-    // To persist changes automatically, a backend API would be required.
     const jsonString = JSON.stringify(designs, null, 2);
     const blob = new Blob([jsonString], { type: 'application/json' });
     saveAs(blob, 'designs.json');
@@ -311,42 +354,70 @@ export default function QrArtStudio() {
                         <SelectTrigger><SelectValue /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="square">Square</SelectItem>
-                          <SelectItem value="rounded">Rounded (Not Implemented)</SelectItem>
-                          <SelectItem value="dot">Dot (Not Implemented)</SelectItem>
+                          <SelectItem value="rounded">Rounded</SelectItem>
+                          <SelectItem value="dot">Dot</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                  <div>
-                    <Label>Pixel Color</Label>
-                    <Input type="color" value={design.pixelColor} onChange={(e) => updateDesign(design.id, { pixelColor: e.target.value })} className="p-1 h-10"/>
-                  </div>
-                  <div>
-                    <Label>Foreground Color</Label>
-                    <Input type="color" value={design.foregroundColor || '#000000'} onChange={(e) => updateDesign(design.id, { foregroundColor: e.target.value })} className="p-1 h-10"/>
-                  </div>
-                  <div>
-                    <Label>Eye Color</Label>
-                     <Input type="color" value={design.eyeColor} onChange={(e) => updateDesign(design.id, { eyeColor: e.target.value })} className="p-1 h-10" disabled/>
-                     <p className='text-xs text-muted-foreground mt-1'>Not Implemented</p>
-                  </div>
-                  <div>
-                    <Label>QR Background Color</Label>
-                    <Input type="color" value={design.backgroundColor} onChange={(e) => updateDesign(design.id, { backgroundColor: e.target.value })} className="p-1 h-10" disabled={design.useImage}/>
-                    {design.useImage && <p className="text-xs text-muted-foreground mt-1">Disabled when using background image.</p>}
+                <div className="space-y-4">
+                  <Label>Eye Radius (for corners)</Label>
+                  <div className="flex items-center gap-4">
+                    <Slider
+                      value={[design.eyeRadius]}
+                      onValueChange={(v) => updateDesign(design.id, { eyeRadius: v[0] })}
+                      max={30}
+                      step={1}
+                    />
+                    <span className="text-sm text-muted-foreground w-8">{design.eyeRadius}</span>
                   </div>
                 </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+                    <div>
+                        <Label>Pixel Color</Label>
+                        <Input type="color" value={design.pixelColor} onChange={(e) => updateDesign(design.id, { pixelColor: e.target.value, pixelGradientStart: '', pixelGradientEnd: '' })} className="p-1 h-10"/>
+                        <p className="text-xs text-muted-foreground mt-1">Used if gradients are not set.</p>
+                    </div>
+                    <div>
+                        <Label>QR Background Color</Label>
+                        <Input type="color" value={design.backgroundColor} onChange={(e) => updateDesign(design.id, { backgroundColor: e.target.value, bgGradientStart: '', bgGradientEnd: '' })} className="p-1 h-10" disabled={design.useImage}/>
+                        {design.useImage && <p className="text-xs text-muted-foreground mt-1">Disabled for image backgrounds.</p>}
+                    </div>
+                    <div>
+                        <Label>Pixel Gradient Start</Label>
+                        <Input type="color" value={design.pixelGradientStart || '#000000'} onChange={(e) => updateDesign(design.id, { pixelGradientStart: e.target.value })} className="p-1 h-10"/>
+                    </div>
+                     <div>
+                        <Label>Pixel Gradient End</Label>
+                        <Input type="color" value={design.pixelGradientEnd || '#000000'} onChange={(e) => updateDesign(design.id, { pixelGradientEnd: e.target.value })} className="p-1 h-10"/>
+                    </div>
+                    <div>
+                        <Label>BG Gradient Start</Label>
+                        <Input type="color" value={design.bgGradientStart || '#FFFFFF'} onChange={(e) => updateDesign(design.id, { bgGradientStart: e.target.value })} className="p-1 h-10" disabled={design.useImage}/>
+                    </div>
+                    <div>
+                        <Label>BG Gradient End</Label>
+                        <Input type="color" value={design.bgGradientEnd || '#FFFFFF'} onChange={(e) => updateDesign(design.id, { bgGradientEnd: e.target.value })} className="p-1 h-10" disabled={design.useImage}/>
+                    </div>
+                </div>
                 
-                 <div className="space-y-2">
-                    <Label>Embedded Text</Label>
-                    <Textarea
-                      value={design.text || ''}
-                      onChange={(e) => updateDesign(design.id, { text: e.target.value })}
-                      placeholder="Enter text to embed in the SVG"
-                    />
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <Label>Foreground Color (for text)</Label>
+                        <Input type="color" value={design.foregroundColor || '#000000'} onChange={(e) => updateDesign(design.id, { foregroundColor: e.target.value })} className="p-1 h-10"/>
+                    </div>
+                    <div className="space-y-2">
+                        <Label>Embedded Text</Label>
+                        <Textarea
+                          value={design.text || ''}
+                          onChange={(e) => updateDesign(design.id, { text: e.target.value })}
+                          placeholder="Enter text to embed in the SVG"
+                        />
+                    </div>
                  </div>
+
 
                 <div className="flex items-center space-x-2">
                     <Switch
@@ -473,5 +544,3 @@ export default function QrArtStudio() {
     </div>
   );
 }
-
-    
