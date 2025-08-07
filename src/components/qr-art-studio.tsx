@@ -130,23 +130,34 @@ export default function QrArtStudio() {
       for (const design of designs) {
         let qrCodeDataUrl: string;
 
-        const qrOptions: QRCode.QRCodeToDataURLOptions = {
+        const baseQrOptions: QRCode.QRCodeToDataURLOptions = {
           errorCorrectionLevel: 'H',
           width: QR_IMG_SIZE,
           margin: 1,
-          color: {
-            dark: design.pixelColor,
-            light: design.backgroundColor,
-          },
         };
 
         if (design.useImage && backgroundImage) {
-          qrCodeDataUrl = await generateQrWithImageBg(content, qrOptions, backgroundImage);
+          const qrOptionsForImage: QRCode.QRCodeToDataURLOptions = {
+            ...baseQrOptions,
+            color: {
+              dark: design.pixelColor,
+              light: '#00000000', // Transparent background for image overlay
+            },
+          };
+          qrCodeDataUrl = await generateQrWithImageBg(content, qrOptionsForImage, backgroundImage);
         } else {
+          // Standard generation with background and pixel colors
+          const qrOptionsStandard: QRCode.QRCodeToDataURLOptions = {
+            ...baseQrOptions,
+            color: {
+              dark: design.pixelColor,
+              light: design.backgroundColor,
+            },
+          };
           // The qrcode library doesn't support different eye colors directly.
           // This is a limitation we'll accept for now. A more advanced implementation
           // would involve custom drawing on a canvas.
-          qrCodeDataUrl = await QRCode.toDataURL(content, qrOptions);
+          qrCodeDataUrl = await QRCode.toDataURL(content, qrOptionsStandard);
         }
 
         const templateResponse = await fetch(design.template);
@@ -454,5 +465,3 @@ export default function QrArtStudio() {
     </div>
   );
 }
-
-    
