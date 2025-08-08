@@ -14,13 +14,128 @@ import { Design, GeneratedQr } from '@/lib/types';
 import QRCode from 'qrcode';
 import { saveAs } from 'file-saver';
 import JSZip from 'jszip';
-import { QrCode, Palette, Download, Trash2, Plus, Settings, Loader2, Image as ImageIcon, X } from 'lucide-react';
+import { QrCode, Palette, Download, Trash2, Plus, Settings, Loader2, Image as ImageIcon, X, Clipboard } from 'lucide-react';
 import { Skeleton } from './ui/skeleton';
 import { Switch } from './ui/switch';
 import { Textarea } from './ui/textarea';
 import { Slider } from './ui/slider';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog';
 
 const QR_IMG_SIZE = 512;
+
+const aiPromptText = `
+### **AI Prompt for Generating the QR Art Studio Application**
+
+**Project Name**: QR Art Studio
+
+**Core Objective**: Develop a highly interactive, single-page web application using Next.js, React, and TypeScript for generating artistic and scannable QR codes. The application must allow users to embed these QR codes into SVG templates and provide extensive customization options for the QR code's appearance.
+
+**Tech Stack**:
+*   **Framework**: Next.js with the App Router
+*   **UI Library**: React with TypeScript
+*   **Styling**: Tailwind CSS with ShadCN UI components (pre-installed).
+*   **Icons**: \`lucide-react\`
+*   **QR Code Generation**: \`qrcode\` library
+*   **File Downloads**: \`file-saver\` and \`jszip\` libraries
+
+---
+
+### **Application Structure & UI Flow**
+
+1.  **Main Layout**:
+    *   A central, two-tab interface using the ShadCN \`Tabs\` component.
+    *   **Tab 1: "Generator"**: This is the primary tab for content input and final QR code generation.
+    *   **Tab 2: "Designs"**: This tab is for creating and managing reusable design presets.
+    *   An elegant header with the title "QR Art Studio" using the 'Space Grotesk' font and a sub-description.
+
+2.  **Generator Tab (\`/\` or \`page.tsx\`)**:
+    *   **Content Input**: A text input field for the user to enter the data for the QR code (e.g., a URL or text).
+    *   **Background Image Upload**: A file input that allows users to upload an image (PNG/JPEG). When an image is uploaded, display a small thumbnail preview and a button to remove it. This image can be used as the QR code background if specified in a design.
+    *   **Generate Button**: A primary button labeled "Generate QR Codes". When clicked, it should generate a QR code for *each* design preset defined in the "Designs" tab and display the results in the preview section. Show a loading state on this button during generation.
+    *   **Preview Section**: Below the tabs, create a dedicated section that appears after generation. It should display all the final rendered SVG artworks in a responsive grid. Each artwork should have the design name displayed beneath it. Show skeleton loaders in this section while generating.
+    *   **Download Button**: A "Download All (.zip)" button in the preview section header. This button should package all the generated SVG files into a single zip archive for download.
+
+3.  **Designs Tab (Design Manager)**:
+    *   **Preset Management**: Use a ShadCN \`Accordion\` to list all design presets. Each \`AccordionItem\` represents one design.
+        *   The \`AccordionTrigger\` should display an editable input field for the design's \`name\`.
+    *   **Controls**: Inside each \`AccordionContent\`, provide a comprehensive set of controls to customize the QR code's appearance. Organize these controls logically with labels and sub-headings.
+    *   **Live Preview**: Crucially, each accordion panel must contain a small \`DesignPreview\` component that renders a live, real-time preview of the QR code as the user adjusts its settings.
+    *   **Management Buttons**: Include "Add Design", "Remove Design", and "Save designs.json" buttons. The save button must package all current design settings into a downloadable \`designs.json\` file.
+
+---
+
+### **Core QR Code Rendering Logic (\`drawCustomQr\` function)**
+
+This is the most critical part of the application. Create a function that draws a QR code onto an HTML5 canvas with the following detailed requirements:
+
+1.  **Function Signature**: It should accept the QR data, the \`design\` object, an optional background image data URL, and the canvas size.
+
+2.  **Rendering Order & Logic**:
+    *   **Background First**:
+        *   If \`design.transparentBg\` is true, do nothing (leave it transparent).
+        *   If \`design.useImage\` is true and a background image is provided, draw the image onto the canvas. It must be centered and scaled to fit. Before drawing, apply the specified \`imageFilter\` (e.g., 'grayscale(1)', 'brightness(1.5)') and \`imageBlur\`. Then, draw a semi-transparent \`imageOverlayColor\` on top to ensure contrast.
+        *   Otherwise, fill the background with \`design.backgroundColor\` or a gradient if \`bgGradientStart\` and \`bgGradientEnd\` are defined.
+    *   **Data Pixels (Modules)**:
+        *   Iterate through the QR code's data modules.
+        *   For each "dark" module *that is not part of a finder pattern (eye)*, draw the specified \`pixelStyle\` ('square', 'rounded', 'circle', 'diamond').
+        *   The color should be \`pixelColor\` or a gradient if \`pixelGradientStart\` and \`pixelGradientEnd\` are provided.
+    *   **Finder Patterns (Eyes)**: Implement a dedicated \`drawEye\` function with a robust, layered drawing approach:
+        1.  **Draw Solid Frame**: Draw the outer \`eyeShape\` ('frame', 'shield', 'flower') and fill it completely with \`pixelColor\`.
+        2.  **Carve out Pupil Background**: Draw the \`eyeStyle\` shape ('square' or 'circle') in the center, but use \`ctx.clearRect()\` if \`transparentBg\` is true, or fill with \`backgroundColor\` if it's false. This correctly "punches out" the middle part.
+        3.  **Draw Inner Pupil**: Draw the \`eyeStyle\` shape one last time, centered, and fill it with \`pixelColor\`.
+    *   **Final Canvas Clipping**: After *all* drawing is complete, check \`design.canvasShape\`. If it is 'circle', apply a circular clipping mask to the entire canvas to ensure the final output is perfectly circular.
+
+---
+
+### **Type Definitions (\`types.ts\`)**
+
+Define a comprehensive \`Design\` interface with all possible customization properties:
+
+\`\`\`typescript
+export interface Design {
+  id: number;
+  name: string;
+  template: string;
+  
+  // Pixel Styling
+  pixelStyle: 'square' | 'rounded' | 'circle' | 'diamond';
+  pixelColor: string;
+  pixelGradientStart?: string;
+  pixelGradientEnd?: string;
+
+  // Eye Styling
+  eyeShape: 'frame' | 'shield' | 'flower';
+  eyeStyle: 'square' | 'circle';
+  eyeRadius: number;
+
+  // Background & Canvas
+  backgroundColor: string;
+  bgGradientStart?: string;
+  bgGradientEnd?: string;
+  transparentBg?: boolean;
+  padding: number;
+  canvasShape: 'square' | 'circle';
+
+  // Image Background Settings
+  useImage?: boolean;
+  imageFilter: 'none' | 'light' | 'black-and-white' | 'sketchy';
+  imageOverlayColor?: string;
+  imageOverlayOpacity?: number;
+  imageBlur?: number;
+
+  // SVG Template Settings
+  text?: string;
+  foregroundColor: string;
+}
+\`\`\`
+
+---
+
+### **SVG Injection Logic**
+
+When the main "Generate" button is clicked, after generating the custom QR code as a PNG data URL, fetch the SVG template specified in the design. Use a robust string replacement method (e.g., a regex that handles \`href\` and \`xlink:href\` with single or double quotes) to replace the \`href\` attribute of the *first* \`<image>\` tag in the SVG content with the generated QR code's data URL. Also replace placeholder text with \`design.text\` and update its fill color.
+`;
+
 
 const drawCustomQr = (qrData: QRCode.QRCode | null, design: Design, bgImage: string | null, size: number): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -40,8 +155,9 @@ const drawCustomQr = (qrData: QRCode.QRCode | null, design: Design, bgImage: str
   
       const drawBackground = () => {
         return new Promise<void>((bgResolve) => {
+          ctx.clearRect(0, 0, canvasSize, canvasSize);
+
           if (design.transparentBg) {
-              ctx.clearRect(0, 0, canvasSize, canvasSize);
               bgResolve();
               return;
           }
@@ -49,7 +165,47 @@ const drawCustomQr = (qrData: QRCode.QRCode | null, design: Design, bgImage: str
           if (design.useImage && bgImage) {
             const img = new Image();
             img.onload = () => {
-              ctx.drawImage(img, 0, 0, canvasSize, canvasSize);
+              const imgAspectRatio = img.width / img.height;
+              const canvasAspectRatio = canvasSize / canvasSize;
+              let renderWidth = canvasSize;
+              let renderHeight = canvasSize;
+              let x = 0;
+              let y = 0;
+
+              if (imgAspectRatio > canvasAspectRatio) {
+                renderHeight = canvasSize;
+                renderWidth = renderHeight * imgAspectRatio;
+                x = (canvasSize - renderWidth) / 2;
+              } else {
+                renderWidth = canvasSize;
+                renderHeight = renderWidth / imgAspectRatio;
+                y = (canvasSize - renderHeight) / 2;
+              }
+              
+              ctx.save();
+              const filterParts = [];
+              if (design.imageBlur && design.imageBlur > 0) {
+                filterParts.push(`blur(${design.imageBlur}px)`);
+              }
+              const imageFilter = design.imageFilter || 'none';
+              if (imageFilter === 'black-and-white') filterParts.push('grayscale(100%)');
+              if (imageFilter === 'light') filterParts.push('brightness(150%)');
+              if (imageFilter === 'sketchy') {
+                  filterParts.push('grayscale(100%) contrast(200%) brightness(120%)');
+              }
+              if (filterParts.length > 0) {
+                  ctx.filter = filterParts.join(' ');
+              }
+
+              ctx.drawImage(img, x, y, renderWidth, renderHeight);
+
+              if (design.imageOverlayColor) {
+                  ctx.globalAlpha = design.imageOverlayOpacity || 0.5;
+                  ctx.fillStyle = design.imageOverlayColor;
+                  ctx.fillRect(0, 0, canvasSize, canvasSize);
+              }
+
+              ctx.restore();
               bgResolve();
             };
             img.onerror = () => {
@@ -128,12 +284,18 @@ const drawCustomQr = (qrData: QRCode.QRCode | null, design: Design, bgImage: str
               framePath.closePath();
               break;
           case 'flower':
-              framePath.moveTo(eyeSize / 2, 0);
-              for (let i = 0; i < 4; i++) {
-                framePath.quadraticCurveTo(eyeSize, 0, eyeSize, eyeSize / 2);
-                framePath.quadraticCurveTo(eyeSize, eyeSize, eyeSize / 2, eyeSize);
-                framePath.quadraticCurveTo(0, eyeSize, 0, eyeSize / 2);
-                framePath.quadraticCurveTo(0, 0, eyeSize / 2, 0);
+              // A simplified flower shape
+              for(let i = 0; i < 4; i++){
+                ctx.beginPath();
+                const x = eyeSize / 2;
+                const y = eyeSize / 2;
+                const radius = eyeSize/4;
+                const startAngle = (i * 90) * Math.PI/180;
+                const endAngle = ((i+1) * 90) * Math.PI/180;
+                ctx.arc(x, y, radius, startAngle, endAngle);
+                ctx.lineTo(x, y);
+                ctx.closePath();
+                ctx.fill();
               }
               break;
           default: // frame
@@ -161,8 +323,16 @@ const drawCustomQr = (qrData: QRCode.QRCode | null, design: Design, bgImage: str
         if (design.transparentBg) {
             ctx.clearRect(0, 0, eyeSize, eyeSize);
         } else {
-            ctx.fillStyle = design.backgroundColor;
-            ctx.fillRect(0, 0, eyeSize, eyeSize);
+             // To ensure contrast on image backgrounds, use a solid color for eye background
+            if (design.useImage) {
+                 ctx.fillStyle = design.imageOverlayColor || '#FFFFFF';
+                 ctx.globalAlpha = design.imageOverlayOpacity || 0.5;
+                 ctx.fillRect(0, 0, eyeSize, eyeSize);
+                 ctx.globalAlpha = 1.0;
+            } else {
+                ctx.fillStyle = design.backgroundColor;
+                ctx.fillRect(0, 0, eyeSize, eyeSize);
+            }
         }
         ctx.restore();
 
@@ -197,7 +367,8 @@ const drawCustomQr = (qrData: QRCode.QRCode | null, design: Design, bgImage: str
   
       drawBackground().then(() => {
         let pixelFillStyle: string | CanvasGradient = design.pixelColor;
-        if (design.pixelGradientStart && design.pixelGradientEnd) {
+        // Gradients disabled on image backgrounds for better scannability
+        if (design.pixelGradientStart && design.pixelGradientEnd && !design.useImage) {
           const gradient = ctx.createLinearGradient(0, 0, canvasSize, canvasSize);
           gradient.addColorStop(0, design.pixelGradientStart);
           gradient.addColorStop(1, design.pixelGradientEnd);
@@ -441,6 +612,10 @@ export default function QrArtStudio() {
       canvasShape: 'square',
       text: "Your Text Here",
       useImage: false,
+      imageFilter: 'none',
+      imageBlur: 0,
+      imageOverlayColor: '#FFFFFF',
+      imageOverlayOpacity: 0.5,
       transparentBg: false,
       pixelGradientStart: "",
       pixelGradientEnd: "",
@@ -464,13 +639,40 @@ export default function QrArtStudio() {
     saveAs(blob, 'designs.json');
     toast({ title: "Designs Saved", description: "Your designs.json file has been prepared for download." });
   };
+  
+  const AiPromptDialog = () => (
+    <Dialog>
+      <DialogTrigger asChild>
+        <Button variant="outline" size="sm"><Clipboard className="mr-2 h-4 w-4" /> Show AI Prompt</Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-4xl">
+        <DialogHeader>
+          <DialogTitle>AI Prompt for QR Art Studio</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+            <div className="max-h-[60vh] overflow-y-auto rounded-md border bg-muted p-4">
+                <pre className="text-sm whitespace-pre-wrap font-mono">{aiPromptText}</pre>
+            </div>
+            <Button onClick={() => {
+                navigator.clipboard.writeText(aiPromptText);
+                toast({ title: "Copied!", description: "The AI prompt has been copied to your clipboard." });
+            }}>
+                <Clipboard className="mr-2 h-4 w-4" /> Copy Prompt
+            </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
 
 
   const renderDesignManager = () => (
     <Card>
-      <CardHeader>
-        <CardTitle className="font-headline flex items-center gap-2"><Palette />Design Presets</CardTitle>
-        <CardDescription>Manage your QR code design templates. These settings will be saved to `designs.json`.</CardDescription>
+      <CardHeader className="flex-row items-center justify-between">
+        <div>
+            <CardTitle className="font-headline flex items-center gap-2"><Palette />Design Presets</CardTitle>
+            <CardDescription>Manage your QR code design templates. These settings will be saved to `designs.json`.</CardDescription>
+        </div>
+        <AiPromptDialog />
       </CardHeader>
       <CardContent className="space-y-4">
         <Accordion type="single" collapsible className="w-full">
@@ -600,11 +802,11 @@ export default function QrArtStudio() {
                           </div>
                           <div>
                               <Label>Pixel Gradient Start</Label>
-                              <Input type="color" value={design.pixelGradientStart || '#000000'} onChange={(e) => updateDesign(design.id, { pixelGradientStart: e.target.value })} className="p-1 h-10"/>
+                              <Input type="color" value={design.pixelGradientStart || '#000000'} onChange={(e) => updateDesign(design.id, { pixelGradientStart: e.target.value })} className="p-1 h-10" disabled={design.useImage}/>
                           </div>
                           <div>
                               <Label>Pixel Gradient End</Label>
-                              <Input type="color" value={design.pixelGradientEnd || '#000000'} onChange={(e) => updateDesign(design.id, { pixelGradientEnd: e.target.value })} className="p-1 h-10"/>
+                              <Input type="color" value={design.pixelGradientEnd || '#000000'} onChange={(e) => updateDesign(design.id, { pixelGradientEnd: e.target.value })} className="p-1 h-10" disabled={design.useImage}/>
                           </div>
                           <div>
                               <Label>BG Gradient Start</Label>
@@ -615,6 +817,55 @@ export default function QrArtStudio() {
                               <Input type="color" value={design.bgGradientEnd || '#FFFFFF'} onChange={(e) => updateDesign(design.id, { bgGradientEnd: e.target.value })} className="p-1 h-10" disabled={design.useImage || design.transparentBg}/>
                           </div>
                       </div>
+
+                       {/* Image Background Settings */}
+                      {design.useImage && (
+                        <div className="p-4 border rounded-lg space-y-4">
+                            <h4 className="font-semibold text-lg">Image Background Settings</h4>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div>
+                                    <Label>Image Filter</Label>
+                                    <Select value={design.imageFilter} onValueChange={(v: Design['imageFilter']) => updateDesign(design.id, { imageFilter: v })}>
+                                        <SelectTrigger><SelectValue /></SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="none">None</SelectItem>
+                                            <SelectItem value="light">Light</SelectItem>
+                                            <SelectItem value="black-and-white">Black & White</SelectItem>
+                                            <SelectItem value="sketchy">Sketchy</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div>
+                                    <Label>Overlay Color</Label>
+                                    <Input type="color" value={design.imageOverlayColor} onChange={(e) => updateDesign(design.id, { imageOverlayColor: e.target.value })} className="p-1 h-10"/>
+                                </div>
+                            </div>
+                             <div>
+                                <Label>Image Blur (px)</Label>
+                                <div className="flex items-center gap-4">
+                                    <Slider
+                                    value={[design.imageBlur || 0]}
+                                    onValueChange={(v) => updateDesign(design.id, { imageBlur: v[0] })}
+                                    max={20}
+                                    step={1}
+                                    />
+                                    <span className="text-sm text-muted-foreground w-8">{design.imageBlur || 0}</span>
+                                </div>
+                            </div>
+                            <div>
+                                <Label>Overlay Opacity</Label>
+                                <div className="flex items-center gap-4">
+                                    <Slider
+                                    value={[design.imageOverlayOpacity || 0]}
+                                    onValueChange={(v) => updateDesign(design.id, { imageOverlayOpacity: v[0] })}
+                                    max={1}
+                                    step={0.05}
+                                    />
+                                    <span className="text-sm text-muted-foreground w-8">{design.imageOverlayOpacity?.toFixed(2) || 0}</span>
+                                </div>
+                            </div>
+                        </div>
+                      )}
                       
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                           <div>
@@ -774,4 +1025,3 @@ export default function QrArtStudio() {
     </div>
   );
 }
-
