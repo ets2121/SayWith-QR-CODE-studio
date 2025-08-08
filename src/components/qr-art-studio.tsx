@@ -22,69 +22,11 @@ import { Slider } from './ui/slider';
 
 const QR_IMG_SIZE = 512;
 
-export default function QrArtStudio() {
-  const [content, setContent] = useState('https://firebase.google.com/');
-  const [designs, setDesigns] = useState<Design[]>([]);
-  const [svgTemplates, setSvgTemplates] = useState<string[]>([]);
-  const [generatedQrs, setGeneratedQrs] = useState<GeneratedQr[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isDownloading, setIsDownloading] = useState(false);
-  const [backgroundImage, setBackgroundImage] = useState<string | null>(null);
-  const { toast } = useToast();
-  const previewContainerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    // Fetch designs
-    fetch('/designs.json')
-      .then((res) => res.json())
-      .then((data: Design[]) => setDesigns(data))
-      .catch(() => {
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: "Could not load designs.json. Make sure it exists in the public folder.",
-        });
-      });
-      
-    // Fetch SVG templates
-    fetch('/api/templates')
-      .then((res) => res.json())
-      .then((data: string[]) => {
-        if (data.length > 0) {
-          setSvgTemplates(data);
-        } else {
-          setSvgTemplates(['/templates/template1.svg']); // Fallback
-          toast({
-            title: "No Templates Found",
-            description: "No SVG templates found in /public/templates. Using a default. Please add your own SVGs.",
-          });
-        }
-      })
-      .catch(() => {
-        setSvgTemplates(['/templates/template1.svg']); // Fallback
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: "Could not load SVG templates from the API.",
-        });
-      });
-  }, [toast]);
-
-  const handleBackgroundImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setBackgroundImage(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-  
-  const drawCustomQr = (qrData: QRCode.QRCode, design: Design, bgImage: string | null): Promise<string> => {
+const drawCustomQr = (qrData: QRCode.QRCode | null, design: Design, bgImage: string | null, size: number): Promise<string> => {
     return new Promise((resolve, reject) => {
+      if (!qrData) return resolve('');
       const canvas = document.createElement('canvas');
-      const canvasSize = QR_IMG_SIZE;
+      const canvasSize = size;
       canvas.width = canvasSize;
       canvas.height = canvasSize;
       const ctx = canvas.getContext('2d');
@@ -183,10 +125,14 @@ export default function QrArtStudio() {
                 framePath.closePath();
                 break;
             case 'flower':
-                for(let i=0; i < 6; i++) {
-                    const angle = (i / 6) * 2 * Math.PI;
-                    framePath.addPath(new Path2D(`M ${cx + Math.cos(angle) * eyeSize/4}, ${cy + Math.sin(angle) * eyeSize/4} a ${eyeSize/4} ${eyeSize/4} 0 1 1 0 0.01`));
-                }
+                 const numPetals = 6;
+                 for (let i = 0; i < numPetals; i++) {
+                   const angle = (i / numPetals) * 2 * Math.PI + (Math.PI / numPetals);
+                   const petalX = cx + Math.cos(angle) * (eyeSize / 4);
+                   const petalY = cy + Math.sin(angle) * (eyeSize / 4);
+                   framePath.moveTo(petalX, petalY);
+                   framePath.arc(petalX, petalY, eyeSize / 4, 0, 2 * Math.PI);
+                 }
                 break;
             default: // frame
                 const frameRadius = design.eyeRadius * (moduleSize / 8);
@@ -195,6 +141,10 @@ export default function QrArtStudio() {
         }
         ctx.fill(framePath);
         
+        // Clear inner part for pupil
+        const innerSize = eyeSize - (moduleSize * 2);
+        ctx.clearRect(cx - innerSize / 2, cy - innerSize / 2, innerSize, innerSize);
+
         // Draw Pupil
         ctx.fillStyle = design.pixelColor;
         const pupilPath = new Path2D();
@@ -259,6 +209,111 @@ export default function QrArtStudio() {
     });
   };
 
+const DesignPreview = ({ design, backgroundImage }: { design: Design, backgroundImage: string | null }) => {
+  const [qrCodeDataUrl, setQrCodeDataUrl] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  
+  useEffect(() => {
+    let isMounted = true;
+    setIsLoading(true);
+
+    const generate = async () => {
+      try {
+        const qrData = QRCode.create('Live Preview', { errorCorrectionLevel: 'H' });
+        const dataUrl = await drawCustomQr(qrData, design, backgroundImage, 200);
+        if (isMounted) {
+          setQrCodeDataUrl(dataUrl);
+        }
+      } catch (err) {
+        console.error("Preview generation failed:", err);
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    // Debounce generation
+    const timeoutId = setTimeout(generate, 300);
+
+    return () => { 
+      isMounted = false;
+      clearTimeout(timeoutId);
+    };
+  }, [design, backgroundImage]);
+
+  return (
+    <div className="w-full aspect-square bg-muted/50 rounded-lg flex items-center justify-center p-4">
+      {isLoading ? (
+        <Loader2 className="animate-spin" />
+      ) : (
+        <img src={qrCodeDataUrl} alt="QR Code Preview" className="w-full h-full object-contain" />
+      )}
+    </div>
+  );
+};
+
+
+export default function QrArtStudio() {
+  const [content, setContent] = useState('https://firebase.google.com/');
+  const [designs, setDesigns] = useState<Design[]>([]);
+  const [svgTemplates, setSvgTemplates] = useState<string[]>([]);
+  const [generatedQrs, setGeneratedQrs] = useState<GeneratedQr[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [backgroundImage, setBackgroundImage] = useState<string | null>(null);
+  const { toast } = useToast();
+  const previewContainerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    // Fetch designs
+    fetch('/designs.json')
+      .then((res) => res.json())
+      .then((data: Design[]) => setDesigns(data))
+      .catch(() => {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Could not load designs.json. Make sure it exists in the public folder.",
+        });
+      });
+      
+    // Fetch SVG templates
+    fetch('/api/templates')
+      .then((res) => res.json())
+      .then((data: string[]) => {
+        if (data.length > 0) {
+          setSvgTemplates(data);
+        } else {
+          setSvgTemplates(['/templates/template1.svg']); // Fallback
+          toast({
+            title: "No Templates Found",
+            description: "No SVG templates found in /public/templates. Using a default. Please add your own SVGs.",
+          });
+        }
+      })
+      .catch(() => {
+        setSvgTemplates(['/templates/template1.svg']); // Fallback
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Could not load SVG templates from the API.",
+        });
+      });
+  }, [toast]);
+
+  const handleBackgroundImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setBackgroundImage(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const handleGenerate = async () => {
     if (!content) {
       toast({ variant: "destructive", title: "Error", description: "Content cannot be empty." });
@@ -275,29 +330,7 @@ export default function QrArtStudio() {
       for (const design of designs) {
         let qrCodeDataUrl: string;
         
-        const useSimpleGenerator = design.pixelStyle === 'square' &&
-                                   design.eyeShape === 'frame' &&
-                                   design.eyeStyle === 'square' &&
-                                   design.canvasShape === 'square' &&
-                                   !design.useImage && 
-                                   !design.transparentBg &&
-                                   !design.padding &&
-                                   !design.pixelGradientStart && 
-                                   !design.bgGradientStart;
-
-        if (useSimpleGenerator) {
-             qrCodeDataUrl = await QRCode.toDataURL(content, {
-                errorCorrectionLevel: 'H',
-                width: QR_IMG_SIZE,
-                margin: design.padding,
-                color: {
-                    dark: design.pixelColor,
-                    light: design.backgroundColor,
-                },
-            });
-        } else {
-            qrCodeDataUrl = await drawCustomQr(qrData, design, design.useImage ? backgroundImage : null);
-        }
+        qrCodeDataUrl = await drawCustomQr(qrData, design, design.useImage ? backgroundImage : null, QR_IMG_SIZE);
 
         const templateResponse = await fetch(design.template);
         if (!templateResponse.ok) {
@@ -305,8 +338,8 @@ export default function QrArtStudio() {
            continue;
         }
         let svgText = await templateResponse.text();
-
-        svgText = svgText.replace(/(<image[^>]*?(?:href|xlink:href)=")[^"]*(")/, `$1${qrCodeDataUrl}$2`);
+        
+        svgText = svgText.replace(/(<image[^>]*?id="qr-code-image"[^>]*?(?:href|xlink:href)=")[^"]*(")/, `$1${qrCodeDataUrl}$2`);
         
         if (design.text) {
            svgText = svgText.replace(/(<text[^>]*>)\s*TEXT\s*(<\/text>)/g, `$1${design.text}$2`);
@@ -435,174 +468,183 @@ export default function QrArtStudio() {
                   />
                 </div>
               </AccordionTrigger>
-              <AccordionContent className="p-4 space-y-6 bg-background/50 rounded-md">
-                 {/* Main Settings */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <Label>SVG Template</Label>
-                    <Select value={design.template} onValueChange={(v) => updateDesign(design.id, { template: v })}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {svgTemplates.map(template => (
-                          <SelectItem key={template} value={template}>{template.split('/').pop()}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                   <div>
-                      <Label>Pixel Style</Label>
-                      <Select value={design.pixelStyle} onValueChange={(v: Design['pixelStyle']) => updateDesign(design.id, { pixelStyle: v })}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="square">Square</SelectItem>
-                          <SelectItem value="rounded">Rounded</SelectItem>
-                          <SelectItem value="circle">Circle</SelectItem>
-                          <SelectItem value="diamond">Diamond</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                </div>
-
-                 {/* Canvas Settings */}
-                 <div className="p-4 border rounded-lg space-y-4">
-                    <h4 className="font-semibold text-lg">QR Canvas Settings</h4>
-                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <AccordionContent className="p-4 bg-background/50 rounded-md">
+                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="md:col-span-2 space-y-6">
+                      {/* Main Settings */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
-                            <Label>Canvas Shape</Label>
-                            <Select value={design.canvasShape} onValueChange={(v: Design['canvasShape']) => updateDesign(design.id, { canvasShape: v })}>
-                                <SelectTrigger><SelectValue /></SelectTrigger>
-                                <SelectContent>
+                          <Label>SVG Template</Label>
+                          <Select value={design.template} onValueChange={(v) => updateDesign(design.id, { template: v })}>
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              {svgTemplates.map(template => (
+                                <SelectItem key={template} value={template}>{template.split('/').pop()}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div>
+                            <Label>Pixel Style</Label>
+                            <Select value={design.pixelStyle} onValueChange={(v: Design['pixelStyle']) => updateDesign(design.id, { pixelStyle: v })}>
+                              <SelectTrigger><SelectValue /></SelectTrigger>
+                              <SelectContent>
                                 <SelectItem value="square">Square</SelectItem>
+                                <SelectItem value="rounded">Rounded</SelectItem>
                                 <SelectItem value="circle">Circle</SelectItem>
-                                </SelectContent>
+                                <SelectItem value="diamond">Diamond</SelectItem>
+                              </SelectContent>
                             </Select>
-                        </div>
+                          </div>
+                      </div>
+
+                      {/* Canvas Settings */}
+                      <div className="p-4 border rounded-lg space-y-4">
+                          <h4 className="font-semibold text-lg">QR Canvas Settings</h4>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                              <div>
+                                  <Label>Canvas Shape</Label>
+                                  <Select value={design.canvasShape} onValueChange={(v: Design['canvasShape']) => updateDesign(design.id, { canvasShape: v })}>
+                                      <SelectTrigger><SelectValue /></SelectTrigger>
+                                      <SelectContent>
+                                      <SelectItem value="square">Square</SelectItem>
+                                      <SelectItem value="circle">Circle</SelectItem>
+                                      </SelectContent>
+                                  </Select>
+                              </div>
+                          </div>
+                          <div>
+                              <Label>QR Code Padding</Label>
+                              <div className="flex items-center gap-4">
+                                  <Slider
+                                  value={[design.padding]}
+                                  onValueChange={(v) => updateDesign(design.id, { padding: v[0] })}
+                                  max={64}
+                                  step={1}
+                                  />
+                                  <span className="text-sm text-muted-foreground w-8">{design.padding}</span>
+                              </div>
+                          </div>
+                      </div>
+
+
+                      {/* Eye Settings */}
+                      <div className="p-4 border rounded-lg space-y-4">
+                          <h4 className="font-semibold text-lg">Eye Customization</h4>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                              <div>
+                                  <Label>Eye Shape</Label>
+                                  <Select value={design.eyeShape} onValueChange={(v: Design['eyeShape']) => updateDesign(design.id, { eyeShape: v })}>
+                                      <SelectTrigger><SelectValue /></SelectTrigger>
+                                      <SelectContent>
+                                          <SelectItem value="frame">Frame</SelectItem>
+                                          <SelectItem value="shield">Shield</SelectItem>
+                                          <SelectItem value="flower">Flower</SelectItem>
+                                      </SelectContent>
+                                  </Select>
+                              </div>
+                              <div>
+                                  <Label>Eye Pupil Style</Label>
+                                  <Select value={design.eyeStyle} onValueChange={(v: Design['eyeStyle']) => updateDesign(design.id, { eyeStyle: v })}>
+                                      <SelectTrigger><SelectValue /></SelectTrigger>
+                                      <SelectContent>
+                                          <SelectItem value="square">Square</SelectItem>
+                                          <SelectItem value="circle">Circle</SelectItem>
+                                      </SelectContent>
+                                  </Select>
+                              </div>
+                              <div>
+                                  <Label>Eye Color (Frame)</Label>
+                                  <Input type="color" value={design.eyeColor} onChange={(e) => updateDesign(design.id, { eyeColor: e.target.value })} className="p-1 h-10"/>
+                              </div>
+                          </div>
+                          <div>
+                              <Label>Eye Radius (for 'Frame' shape)</Label>
+                              <div className="flex items-center gap-4">
+                                  <Slider
+                                  value={[design.eyeRadius]}
+                                  onValueChange={(v) => updateDesign(design.id, { eyeRadius: v[0] })}
+                                  max={30}
+                                  step={1}
+                                  />
+                                  <span className="text-sm text-muted-foreground w-8">{design.eyeRadius}</span>
+                              </div>
+                          </div>
+                      </div>
+
+                      {/* Color Settings */}
+                       <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+                          <div>
+                              <Label>Pixel Color (also for Eye Pupil)</Label>
+                              <Input type="color" value={design.pixelColor} onChange={(e) => updateDesign(design.id, { pixelColor: e.target.value, pixelGradientStart: '', pixelGradientEnd: '' })} className="p-1 h-10"/>
+                              <p className="text-xs text-muted-foreground mt-1">Used if gradients are not set.</p>
+                          </div>
+                          <div>
+                              <Label>QR Background Color</Label>
+                              <Input type="color" value={design.backgroundColor} onChange={(e) => updateDesign(design.id, { backgroundColor: e.target.value, bgGradientStart: '', bgGradientEnd: '' })} className="p-1 h-10" disabled={design.useImage || design.transparentBg}/>
+                              {(design.useImage || design.transparentBg) && <p className="text-xs text-muted-foreground mt-1">Disabled for image/transparent backgrounds.</p>}
+                          </div>
+                          <div>
+                              <Label>Pixel Gradient Start</Label>
+                              <Input type="color" value={design.pixelGradientStart || '#000000'} onChange={(e) => updateDesign(design.id, { pixelGradientStart: e.target.value })} className="p-1 h-10"/>
+                          </div>
+                          <div>
+                              <Label>Pixel Gradient End</Label>
+                              <Input type="color" value={design.pixelGradientEnd || '#000000'} onChange={(e) => updateDesign(design.id, { pixelGradientEnd: e.target.value })} className="p-1 h-10"/>
+                          </div>
+                          <div>
+                              <Label>BG Gradient Start</Label>
+                              <Input type="color" value={design.bgGradientStart || '#FFFFFF'} onChange={(e) => updateDesign(design.id, { bgGradientStart: e.target.value })} className="p-1 h-10" disabled={design.useImage || design.transparentBg}/>
+                          </div>
+                          <div>
+                              <Label>BG Gradient End</Label>
+                              <Input type="color" value={design.bgGradientEnd || '#FFFFFF'} onChange={(e) => updateDesign(design.id, { bgGradientEnd: e.target.value })} className="p-1 h-10" disabled={design.useImage || design.transparentBg}/>
+                          </div>
+                      </div>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          <div>
+                              <Label>Foreground Color (for text)</Label>
+                              <Input type="color" value={design.foregroundColor || '#000000'} onChange={(e) => updateDesign(design.id, { foregroundColor: e.target.value })} className="p-1 h-10"/>
+                          </div>
+                          <div className="space-y-2">
+                              <Label>Embedded Text</Label>
+                              <Textarea
+                                value={design.text || ''}
+                                onChange={(e) => updateDesign(design.id, { text: e.target.value })}
+                                placeholder="Enter text to embed in the SVG"
+                              />
+                          </div>
+                      </div>
+
+                      {/* Toggles */}
+                      <div className="flex items-center space-x-4">
+                          <div className="flex items-center space-x-2">
+                              <Switch
+                                  id={`use-image-${design.id}`}
+                                  checked={design.useImage}
+                                  onCheckedChange={(checked) => updateDesign(design.id, { useImage: checked })}
+                              />
+                              <Label htmlFor={`use-image-${design.id}`}>Use Image Background</Label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                              <Switch
+                                  id={`transparent-bg-${design.id}`}
+                                  checked={!!design.transparentBg}
+                                  onCheckedChange={(checked) => updateDesign(design.id, { transparentBg: checked })}
+                              />
+                              <Label htmlFor={`transparent-bg-${design.id}`}>Transparent QR Background</Label>
+                          </div>
+                      </div>
                     </div>
-                    <div>
-                        <Label>QR Code Padding</Label>
-                        <div className="flex items-center gap-4">
-                            <Slider
-                            value={[design.padding]}
-                            onValueChange={(v) => updateDesign(design.id, { padding: v[0] })}
-                            max={64}
-                            step={1}
-                            />
-                            <span className="text-sm text-muted-foreground w-8">{design.padding}</span>
-                        </div>
+                    
+                    <div className="flex flex-col gap-4">
+                        <h4 className="font-semibold text-lg text-center">Live Preview</h4>
+                        <DesignPreview design={design} backgroundImage={backgroundImage} />
+                         <Button variant="destructive" size="sm" onClick={() => removeDesign(design.id)} className="w-full"><Trash2 className="mr-2"/> Remove Design</Button>
                     </div>
                  </div>
 
-
-                {/* Eye Settings */}
-                 <div className="p-4 border rounded-lg space-y-4">
-                    <h4 className="font-semibold text-lg">Eye Customization</h4>
-                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div>
-                            <Label>Eye Shape</Label>
-                            <Select value={design.eyeShape} onValueChange={(v: Design['eyeShape']) => updateDesign(design.id, { eyeShape: v })}>
-                                <SelectTrigger><SelectValue /></SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="frame">Frame</SelectItem>
-                                    <SelectItem value="shield">Shield</SelectItem>
-                                    <SelectItem value="flower">Flower</SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
-                         <div>
-                            <Label>Eye Pupil Style</Label>
-                            <Select value={design.eyeStyle} onValueChange={(v: Design['eyeStyle']) => updateDesign(design.id, { eyeStyle: v })}>
-                                <SelectTrigger><SelectValue /></SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="square">Square</SelectItem>
-                                    <SelectItem value="circle">Circle</SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
-                        <div>
-                            <Label>Eye Color (Frame)</Label>
-                            <Input type="color" value={design.eyeColor} onChange={(e) => updateDesign(design.id, { eyeColor: e.target.value })} className="p-1 h-10"/>
-                        </div>
-                    </div>
-                    <div>
-                        <Label>Eye Radius (for 'Frame' shape)</Label>
-                        <div className="flex items-center gap-4">
-                            <Slider
-                            value={[design.eyeRadius]}
-                            onValueChange={(v) => updateDesign(design.id, { eyeRadius: v[0] })}
-                            max={30}
-                            step={1}
-                            />
-                            <span className="text-sm text-muted-foreground w-8">{design.eyeRadius}</span>
-                        </div>
-                    </div>
-                 </div>
-
-                {/* Color Settings */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
-                    <div>
-                        <Label>Pixel Color (also for Eye Pupil)</Label>
-                        <Input type="color" value={design.pixelColor} onChange={(e) => updateDesign(design.id, { pixelColor: e.target.value, pixelGradientStart: '', pixelGradientEnd: '' })} className="p-1 h-10"/>
-                        <p className="text-xs text-muted-foreground mt-1">Used if gradients are not set.</p>
-                    </div>
-                    <div>
-                        <Label>QR Background Color</Label>
-                        <Input type="color" value={design.backgroundColor} onChange={(e) => updateDesign(design.id, { backgroundColor: e.target.value, bgGradientStart: '', bgGradientEnd: '' })} className="p-1 h-10" disabled={design.useImage || design.transparentBg}/>
-                        {(design.useImage || design.transparentBg) && <p className="text-xs text-muted-foreground mt-1">Disabled for image/transparent backgrounds.</p>}
-                    </div>
-                    <div>
-                        <Label>Pixel Gradient Start</Label>
-                        <Input type="color" value={design.pixelGradientStart || '#000000'} onChange={(e) => updateDesign(design.id, { pixelGradientStart: e.target.value })} className="p-1 h-10"/>
-                    </div>
-                     <div>
-                        <Label>Pixel Gradient End</Label>
-                        <Input type="color" value={design.pixelGradientEnd || '#000000'} onChange={(e) => updateDesign(design.id, { pixelGradientEnd: e.target.value })} className="p-1 h-10"/>
-                    </div>
-                    <div>
-                        <Label>BG Gradient Start</Label>
-                        <Input type="color" value={design.bgGradientStart || '#FFFFFF'} onChange={(e) => updateDesign(design.id, { bgGradientStart: e.target.value })} className="p-1 h-10" disabled={design.useImage || design.transparentBg}/>
-                    </div>
-                    <div>
-                        <Label>BG Gradient End</Label>
-                        <Input type="color" value={design.bgGradientEnd || '#FFFFFF'} onChange={(e) => updateDesign(design.id, { bgGradientEnd: e.target.value })} className="p-1 h-10" disabled={design.useImage || design.transparentBg}/>
-                    </div>
-                </div>
-                
-                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                        <Label>Foreground Color (for text)</Label>
-                        <Input type="color" value={design.foregroundColor || '#000000'} onChange={(e) => updateDesign(design.id, { foregroundColor: e.target.value })} className="p-1 h-10"/>
-                    </div>
-                    <div className="space-y-2">
-                        <Label>Embedded Text</Label>
-                        <Textarea
-                          value={design.text || ''}
-                          onChange={(e) => updateDesign(design.id, { text: e.target.value })}
-                          placeholder="Enter text to embed in the SVG"
-                        />
-                    </div>
-                 </div>
-
-                {/* Toggles */}
-                <div className="flex items-center space-x-4">
-                    <div className="flex items-center space-x-2">
-                        <Switch
-                            id={`use-image-${design.id}`}
-                            checked={design.useImage}
-                            onCheckedChange={(checked) => updateDesign(design.id, { useImage: checked })}
-                        />
-                        <Label htmlFor={`use-image-${design.id}`}>Use Image Background</Label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                         <Switch
-                            id={`transparent-bg-${design.id}`}
-                            checked={!!design.transparentBg}
-                            onCheckedChange={(checked) => updateDesign(design.id, { transparentBg: checked })}
-                        />
-                        <Label htmlFor={`transparent-bg-${design.id}`}>Transparent QR Background</Label>
-                    </div>
-                </div>
-
-                <Button variant="destructive" size="sm" onClick={() => removeDesign(design.id)}><Trash2 className="mr-2"/> Remove Design</Button>
               </AccordionContent>
             </AccordionItem>
           ))}
