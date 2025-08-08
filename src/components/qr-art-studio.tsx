@@ -106,76 +106,78 @@ const drawCustomQr = (qrData: QRCode.QRCode | null, design: Design, bgImage: str
       }
       
       const drawEye = (cornerX: number, cornerY: number) => {
-          const eyeSize = moduleSize * 7;
-          const pupilSize = moduleSize * 3;
-          const eyeColor = design.pixelColor;
+        const eyeSize = moduleSize * 7;
+        const pupilSize = moduleSize * 3;
+        const eyeColor = design.pixelColor;
 
-          ctx.save();
-          ctx.translate(padding + cornerX * moduleSize, padding + cornerY * moduleSize);
+        ctx.save();
+        ctx.translate(padding + cornerX * moduleSize, padding + cornerY * moduleSize);
+        
+        // 1. Draw Outer Frame
+        ctx.fillStyle = eyeColor;
+        const framePath = new Path2D();
+        const frameRadius = design.eyeRadius * (moduleSize / 8);
+        switch (design.eyeShape) {
+          case 'shield':
+              framePath.moveTo(eyeSize / 2, 0);
+              framePath.lineTo(eyeSize, eyeSize * 0.25);
+              framePath.lineTo(eyeSize, eyeSize * 0.75);
+              framePath.bezierCurveTo(eyeSize, eyeSize, eyeSize / 2, eyeSize, eyeSize / 2, eyeSize);
+              framePath.bezierCurveTo(eyeSize / 2, eyeSize, 0, eyeSize, 0, eyeSize * 0.75);
+              framePath.lineTo(0, eyeSize * 0.25);
+              framePath.closePath();
+              break;
+          case 'flower':
+              const numPetals = 8;
+              for (let i = 0; i < numPetals; i++) {
+                  const angle = (i / numPetals) * 2 * Math.PI;
+                  const x = Math.cos(angle) * (eyeSize / 4) + eyeSize / 2;
+                  const y = Math.sin(angle) * (eyeSize / 4) + eyeSize / 2;
+                  framePath.addPath(new Path2D(`M ${x} ${y} A ${eyeSize/4} ${eyeSize/4} 0 1 1 ${x+0.01} ${y}`));
+              }
+              break;
+          default: // frame
+              framePath.roundRect(0, 0, eyeSize, eyeSize, [frameRadius]);
+              break;
+        }
+        ctx.fill(framePath);
 
-          // 1. Draw Outer Frame
-          ctx.fillStyle = eyeColor;
-          const framePath = new Path2D();
-          switch (design.eyeShape) {
-              case 'shield':
-                  framePath.moveTo(eyeSize / 2, 0);
-                  framePath.lineTo(eyeSize, eyeSize * 0.25);
-                  framePath.lineTo(eyeSize, eyeSize * 0.75);
-                  framePath.bezierCurveTo(eyeSize, eyeSize, eyeSize / 2, eyeSize, eyeSize / 2, eyeSize);
-                  framePath.bezierCurveTo(eyeSize / 2, eyeSize, 0, eyeSize, 0, eyeSize * 0.75);
-                  framePath.lineTo(0, eyeSize * 0.25);
-                  framePath.closePath();
-                  break;
-              case 'flower':
-                  const numPetals = 6;
-                  for (let i = 0; i < numPetals; i++) {
-                      const angle = (i / numPetals) * 2 * Math.PI + (Math.PI / numPetals);
-                      const petalX = Math.cos(angle) * (eyeSize / 4) + eyeSize / 2;
-                      const petalY = Math.sin(angle) * (eyeSize / 4) + eyeSize / 2;
-                      framePath.moveTo(petalX, petalY);
-                      framePath.arc(petalX, petalY, eyeSize / 4, 0, 2 * Math.PI);
-                  }
-                  break;
-              default: // frame
-                  const frameRadius = design.eyeRadius * (moduleSize / 8);
-                  framePath.roundRect(0, 0, eyeSize, eyeSize, [frameRadius]);
-                  break;
-          }
-          ctx.fill(framePath);
-
-          // 2. Draw Pupil Background
-          ctx.fillStyle = design.backgroundColor;
-          const pupilBgPath = new Path2D();
-          const pupilX = (eyeSize - pupilSize) / 2;
-          const pupilY = (eyeSize - pupilSize) / 2;
-          switch (design.eyeStyle) {
-              case 'circle':
-                  pupilBgPath.arc(eyeSize / 2, eyeSize / 2, pupilSize / 2 + moduleSize * 0.5, 0, 2 * Math.PI);
-                  break;
-              default: // square
-                  const pupilBgRadius = design.eyeRadius * (moduleSize / 16);
-                   pupilBgPath.roundRect(pupilX - moduleSize * 0.5, pupilY - moduleSize*0.5, pupilSize + moduleSize, pupilSize+moduleSize, [pupilBgRadius]);
-                  break;
-          }
-          ctx.fill(pupilBgPath);
+        // 2. Draw Pupil Background (carve out)
+        ctx.fillStyle = design.backgroundColor;
+        if (design.transparentBg) ctx.fillStyle = 'rgba(255,255,255,0)';
+        const pupilBgPath = new Path2D();
+        const pupilBgPos = (eyeSize - pupilSize - moduleSize) / 2;
+        const pupilBgSize = pupilSize + moduleSize;
+        const pupilBgRadius = design.eyeRadius * (moduleSize / 16);
+        switch (design.eyeStyle) {
+            case 'circle':
+                pupilBgPath.arc(eyeSize / 2, eyeSize / 2, (pupilBgSize / 2), 0, 2 * Math.PI);
+                break;
+            default: // square
+                pupilBgPath.roundRect(pupilBgPos, pupilBgPos, pupilBgSize, pupilBgSize, [pupilBgRadius]);
+                break;
+        }
+        if(design.transparentBg) ctx.clearRect(0,0,eyeSize,eyeSize);
+        ctx.fill(pupilBgPath);
 
 
-          // 3. Draw Pupil
-          ctx.fillStyle = eyeColor;
-          const pupilPath = new Path2D();
-           switch (design.eyeStyle) {
-              case 'circle':
-                  pupilPath.arc(eyeSize / 2, eyeSize / 2, pupilSize / 2, 0, 2 * Math.PI);
-                  break;
-              default: // square
-                  const pupilRadius = design.eyeRadius * (moduleSize / 16);
-                  pupilPath.roundRect(pupilX, pupilY, pupilSize, pupilSize, [pupilRadius]);
-                  break;
-          }
-          ctx.fill(pupilPath);
+        // 3. Draw Pupil
+        ctx.fillStyle = eyeColor;
+        const pupilPath = new Path2D();
+        const pupilPos = (eyeSize - pupilSize) / 2;
+        const pupilRadius = design.eyeRadius * (moduleSize / 16);
+        switch (design.eyeStyle) {
+            case 'circle':
+                pupilPath.arc(eyeSize / 2, eyeSize / 2, pupilSize / 2, 0, 2 * Math.PI);
+                break;
+            default: // square
+                pupilPath.roundRect(pupilPos, pupilPos, pupilSize, pupilSize, [pupilRadius]);
+                break;
+        }
+        ctx.fill(pupilPath);
 
-          ctx.restore();
-      }
+        ctx.restore();
+    }
 
 
       const clipCanvas = () => {
@@ -773,3 +775,5 @@ export default function QrArtStudio() {
     </div>
   );
 }
+
+    
