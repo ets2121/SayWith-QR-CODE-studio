@@ -142,14 +142,9 @@ const drawCustomQr = (qrData: QRCode.QRCode | null, design: Design, bgImage: str
                 framePath.roundRect(-eyeSize / 2, -eyeSize / 2, eyeSize, eyeSize, [frameRadius]);
                 break;
         }
-        ctx.fill(framePath);
         
-        // Clear inner part for pupil
+        // Carve out the center for the pupil
         const innerSize = eyeSize - (moduleSize * 2);
-        ctx.clearRect(-innerSize / 2, -innerSize / 2, innerSize, innerSize);
-
-        // Draw Pupil
-        ctx.fillStyle = design.pixelColor;
         const pupilPath = new Path2D();
         switch(style) {
             case 'circle':
@@ -160,7 +155,22 @@ const drawCustomQr = (qrData: QRCode.QRCode | null, design: Design, bgImage: str
                  pupilPath.roundRect(-pupilSize / 2, -pupilSize / 2, pupilSize, pupilSize, [pupilRadius]);
                 break;
         }
+
+        ctx.clip(framePath, 'evenodd');
+        ctx.fill(framePath); // Fill the frame
+        ctx.restore(); // Restore context to remove clipping from frame
+
+        ctx.save();
+        ctx.translate(cx, cy);
+        
+        // Fill the pupil's background
+        ctx.fillStyle = design.backgroundColor;
         ctx.fill(pupilPath);
+
+        // Draw Pupil
+        ctx.fillStyle = design.pixelColor;
+        ctx.fill(pupilPath);
+        
         ctx.restore();
       }
 
