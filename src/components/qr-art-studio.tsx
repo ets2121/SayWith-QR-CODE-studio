@@ -143,11 +143,9 @@ const drawCustomQr = (qrData: QRCode.QRCode | null, design: Design, bgImage: str
         ctx.fill(framePath);
 
         // 2. Draw Pupil Background (carve out)
-        ctx.fillStyle = design.backgroundColor;
-        if (design.transparentBg) ctx.fillStyle = 'rgba(255,255,255,0)';
         const pupilBgPath = new Path2D();
-        const pupilBgPos = (eyeSize - pupilSize - moduleSize) / 2;
-        const pupilBgSize = pupilSize + moduleSize;
+        const pupilBgPos = moduleSize;
+        const pupilBgSize = eyeSize - moduleSize * 2;
         const pupilBgRadius = design.eyeRadius * (moduleSize / 16);
         switch (design.eyeStyle) {
             case 'circle':
@@ -157,8 +155,16 @@ const drawCustomQr = (qrData: QRCode.QRCode | null, design: Design, bgImage: str
                 pupilBgPath.roundRect(pupilBgPos, pupilBgPos, pupilBgSize, pupilBgSize, [pupilBgRadius]);
                 break;
         }
-        if(design.transparentBg) ctx.clearRect(0,0,eyeSize,eyeSize);
-        ctx.fill(pupilBgPath);
+        
+        ctx.save();
+        ctx.clip(pupilBgPath);
+        if (design.transparentBg) {
+            ctx.clearRect(0, 0, eyeSize, eyeSize);
+        } else {
+            ctx.fillStyle = design.backgroundColor;
+            ctx.fillRect(0, 0, eyeSize, eyeSize);
+        }
+        ctx.restore();
 
 
         // 3. Draw Pupil
@@ -775,5 +781,3 @@ export default function QrArtStudio() {
     </div>
   );
 }
-
-    
