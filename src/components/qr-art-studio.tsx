@@ -111,53 +111,57 @@ const drawCustomQr = (qrData: QRCode.QRCode | null, design: Design, bgImage: str
         const cy = padding + cornerY * moduleSize + eyeSize / 2;
         const pupilSize = moduleSize * 3;
         
+        ctx.save();
+        ctx.translate(cx, cy);
+
         // Draw Frame
         ctx.fillStyle = design.eyeColor;
         const framePath = new Path2D();
         switch(shape) {
             case 'shield':
-                framePath.moveTo(cx, cy - eyeSize / 2);
-                framePath.lineTo(cx + eyeSize / 2, cy - eyeSize / 4);
-                framePath.lineTo(cx + eyeSize / 2, cy + eyeSize / 4);
-                framePath.bezierCurveTo(cx + eyeSize / 2, cy + eyeSize / 2, cx, cy + eyeSize/2, cx, cy + eyeSize/2);
-                framePath.bezierCurveTo(cx, cy + eyeSize / 2, cx - eyeSize / 2, cy + eyeSize / 2, cx - eyeSize / 2, cy + eyeSize/4);
-                framePath.lineTo(cx - eyeSize / 2, cy - eyeSize / 4);
+                framePath.moveTo(0, -eyeSize / 2);
+                framePath.lineTo(eyeSize / 2, -eyeSize / 4);
+                framePath.lineTo(eyeSize / 2, eyeSize / 4);
+                framePath.bezierCurveTo(eyeSize / 2, eyeSize / 2, 0, eyeSize/2, 0, eyeSize/2);
+                framePath.bezierCurveTo(0, eyeSize / 2, -eyeSize / 2, eyeSize / 2, -eyeSize / 2, eyeSize/4);
+                framePath.lineTo(-eyeSize / 2, -eyeSize / 4);
                 framePath.closePath();
                 break;
             case 'flower':
                  const numPetals = 6;
                  for (let i = 0; i < numPetals; i++) {
                    const angle = (i / numPetals) * 2 * Math.PI + (Math.PI / numPetals);
-                   const petalX = cx + Math.cos(angle) * (eyeSize / 4);
-                   const petalY = cy + Math.sin(angle) * (eyeSize / 4);
+                   const petalX = Math.cos(angle) * (eyeSize / 4);
+                   const petalY = Math.sin(angle) * (eyeSize / 4);
                    framePath.moveTo(petalX, petalY);
                    framePath.arc(petalX, petalY, eyeSize / 4, 0, 2 * Math.PI);
                  }
                 break;
             default: // frame
                 const frameRadius = design.eyeRadius * (moduleSize / 8);
-                framePath.roundRect(cx - eyeSize / 2, cy - eyeSize / 2, eyeSize, eyeSize, [frameRadius]);
+                framePath.roundRect(-eyeSize / 2, -eyeSize / 2, eyeSize, eyeSize, [frameRadius]);
                 break;
         }
         ctx.fill(framePath);
         
         // Clear inner part for pupil
         const innerSize = eyeSize - (moduleSize * 2);
-        ctx.clearRect(cx - innerSize / 2, cy - innerSize / 2, innerSize, innerSize);
+        ctx.clearRect(-innerSize / 2, -innerSize / 2, innerSize, innerSize);
 
         // Draw Pupil
         ctx.fillStyle = design.pixelColor;
         const pupilPath = new Path2D();
         switch(style) {
             case 'circle':
-                 pupilPath.arc(cx, cy, pupilSize/2, 0, 2*Math.PI);
+                 pupilPath.arc(0, 0, pupilSize/2, 0, 2*Math.PI);
                  break;
             default: // square
                 const pupilRadius = design.eyeRadius * (moduleSize / 16);
-                 pupilPath.roundRect(cx - pupilSize / 2, cy - pupilSize / 2, pupilSize, pupilSize, [pupilRadius]);
+                 pupilPath.roundRect(-pupilSize / 2, -pupilSize / 2, pupilSize, pupilSize, [pupilRadius]);
                 break;
         }
         ctx.fill(pupilPath);
+        ctx.restore();
       }
 
       const clipCanvas = () => {
