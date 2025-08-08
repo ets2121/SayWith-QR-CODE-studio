@@ -128,12 +128,12 @@ const drawCustomQr = (qrData: QRCode.QRCode | null, design: Design, bgImage: str
               framePath.closePath();
               break;
           case 'flower':
-              const numPetals = 8;
-              for (let i = 0; i < numPetals; i++) {
-                  const angle = (i / numPetals) * 2 * Math.PI;
-                  const x = Math.cos(angle) * (eyeSize / 4) + eyeSize / 2;
-                  const y = Math.sin(angle) * (eyeSize / 4) + eyeSize / 2;
-                  framePath.addPath(new Path2D(`M ${x} ${y} A ${eyeSize/4} ${eyeSize/4} 0 1 1 ${x+0.01} ${y}`));
+              framePath.moveTo(eyeSize / 2, 0);
+              for (let i = 0; i < 4; i++) {
+                framePath.quadraticCurveTo(eyeSize, 0, eyeSize, eyeSize / 2);
+                framePath.quadraticCurveTo(eyeSize, eyeSize, eyeSize / 2, eyeSize);
+                framePath.quadraticCurveTo(0, eyeSize, 0, eyeSize / 2);
+                framePath.quadraticCurveTo(0, 0, eyeSize / 2, 0);
               }
               break;
           default: // frame
@@ -185,25 +185,17 @@ const drawCustomQr = (qrData: QRCode.QRCode | null, design: Design, bgImage: str
         ctx.restore();
     }
 
-
-      const clipCanvas = () => {
+      const applyCanvasShape = () => {
         if (design.canvasShape === 'circle') {
-          ctx.save();
+          ctx.globalCompositeOperation = 'destination-in';
           ctx.beginPath();
-          ctx.arc(canvasSize / 2, canvasSize / 2, (canvasSize / 2) - 1, 0, Math.PI * 2);
-          ctx.clip();
-        }
-      }
-      
-      const unclipCanvas = () => {
-        if (design.canvasShape === 'circle') {
-            ctx.restore();
+          ctx.arc(canvasSize / 2, canvasSize / 2, canvasSize / 2, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.globalCompositeOperation = 'source-over';
         }
       }
   
       drawBackground().then(() => {
-        clipCanvas();
-        
         let pixelFillStyle: string | CanvasGradient = design.pixelColor;
         if (design.pixelGradientStart && design.pixelGradientEnd) {
           const gradient = ctx.createLinearGradient(0, 0, canvasSize, canvasSize);
@@ -223,12 +215,13 @@ const drawCustomQr = (qrData: QRCode.QRCode | null, design: Design, bgImage: str
           }
         }
         
-        unclipCanvas();
-
         // Draw finder patterns
         drawEye(0, 0); // Top-left
         drawEye(moduleCount - 7, 0); // Top-right
         drawEye(0, moduleCount - 7); // Bottom-left
+        
+        // Apply final clipping mask
+        applyCanvasShape();
 
         resolve(canvas.toDataURL('image/png'));
       });
@@ -781,3 +774,4 @@ export default function QrArtStudio() {
     </div>
   );
 }
+
