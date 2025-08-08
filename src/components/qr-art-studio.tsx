@@ -114,7 +114,7 @@ const drawCustomQr = (qrData: QRCode.QRCode | null, design: Design, bgImage: str
         ctx.save();
         ctx.translate(cx, cy);
 
-        // Draw Frame
+        // 1. Draw the Frame
         ctx.fillStyle = design.eyeColor;
         const framePath = new Path2D();
         switch(shape) {
@@ -139,38 +139,47 @@ const drawCustomQr = (qrData: QRCode.QRCode | null, design: Design, bgImage: str
                 break;
             default: // frame
                 const frameRadius = design.eyeRadius * (moduleSize / 8);
-                framePath.roundRect(-eyeSize / 2, -eyeSize / 2, eyeSize, eyeSize, [frameRadius]);
+                const outerPath = new Path2D();
+                outerPath.roundRect(-eyeSize / 2, -eyeSize / 2, eyeSize, eyeSize, [frameRadius]);
+                const innerPath = new Path2D();
+                innerPath.roundRect(-eyeSize/2 + moduleSize, -eyeSize/2 + moduleSize, eyeSize - moduleSize*2, eyeSize - moduleSize*2, [frameRadius > 0 ? frameRadius - (moduleSize/2) : 0]);
+                framePath.addPath(outerPath);
+                framePath.addPath(innerPath);
                 break;
         }
+
+        ctx.fill(framePath, 'evenodd');
+
+        // 2. Draw Pupil Background (if not transparent)
+        if (!design.transparentBg) {
+          ctx.fillStyle = design.backgroundColor;
+          const pupilBgPath = new Path2D();
+          switch(style) {
+              case 'circle':
+                  pupilBgPath.arc(0, 0, pupilSize/2, 0, 2*Math.PI);
+                  break;
+              default: // square
+                  const pupilRadius = design.eyeRadius * (moduleSize / 16);
+                  pupilBgPath.roundRect(-pupilSize / 2, -pupilSize / 2, pupilSize, pupilSize, [pupilRadius]);
+                  break;
+          }
+          ctx.fill(pupilBgPath);
+        }
         
-        // Carve out the center for the pupil
-        const innerSize = eyeSize - (moduleSize * 2);
+        // 3. Draw Pupil
+        ctx.fillStyle = design.pixelColor;
         const pupilPath = new Path2D();
         switch(style) {
             case 'circle':
-                 pupilPath.arc(0, 0, pupilSize/2, 0, 2*Math.PI);
-                 break;
+                pupilPath.arc(0, 0, pupilSize/2, 0, 2*Math.PI);
+                break;
             default: // square
                 const pupilRadius = design.eyeRadius * (moduleSize / 16);
-                 pupilPath.roundRect(-pupilSize / 2, -pupilSize / 2, pupilSize, pupilSize, [pupilRadius]);
+                pupilPath.roundRect(-pupilSize / 2, -pupilSize / 2, pupilSize, pupilSize, [pupilRadius]);
                 break;
         }
-
-        ctx.clip(framePath, 'evenodd');
-        ctx.fill(framePath); // Fill the frame
-        ctx.restore(); // Restore context to remove clipping from frame
-
-        ctx.save();
-        ctx.translate(cx, cy);
-        
-        // Fill the pupil's background
-        ctx.fillStyle = design.backgroundColor;
         ctx.fill(pupilPath);
 
-        // Draw Pupil
-        ctx.fillStyle = design.pixelColor;
-        ctx.fill(pupilPath);
-        
         ctx.restore();
       }
 
