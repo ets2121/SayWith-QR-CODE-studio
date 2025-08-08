@@ -9,7 +9,6 @@ export interface Design {
   foregroundColor: string;
   eyeShape: 'frame' | 'shield' | 'flower';
   eyeStyle: 'square' | 'circle';
-  eyeColor: string;
   eyeRadius: number; // Corner radius for the eyes
   padding: number; // Whitespace around the QR code
   canvasShape: 'square' | 'circle';

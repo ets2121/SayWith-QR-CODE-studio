@@ -107,32 +107,30 @@ const drawCustomQr = (qrData: QRCode.QRCode | null, design: Design, bgImage: str
       
       const drawEye = (shape: Design['eyeShape'], style: Design['eyeStyle'], cornerX: number, cornerY: number) => {
         const eyeSize = moduleSize * 7;
-        const cx = padding + cornerX * moduleSize + eyeSize / 2;
-        const cy = padding + cornerY * moduleSize + eyeSize / 2;
         const pupilSize = moduleSize * 3;
         
         ctx.save();
-        ctx.translate(cx, cy);
+        ctx.translate(padding + cornerX * moduleSize, padding + cornerY * moduleSize);
 
         // 1. Draw the Frame
-        ctx.fillStyle = design.eyeColor;
+        ctx.fillStyle = design.pixelColor;
         const framePath = new Path2D();
         switch(shape) {
             case 'shield':
-                framePath.moveTo(0, -eyeSize / 2);
-                framePath.lineTo(eyeSize / 2, -eyeSize / 4);
-                framePath.lineTo(eyeSize / 2, eyeSize / 4);
-                framePath.bezierCurveTo(eyeSize / 2, eyeSize / 2, 0, eyeSize/2, 0, eyeSize/2);
-                framePath.bezierCurveTo(0, eyeSize / 2, -eyeSize / 2, eyeSize / 2, -eyeSize / 2, eyeSize/4);
-                framePath.lineTo(-eyeSize / 2, -eyeSize / 4);
+                framePath.moveTo(eyeSize / 2, 0);
+                framePath.lineTo(eyeSize, eyeSize * 0.25);
+                framePath.lineTo(eyeSize, eyeSize * 0.75);
+                framePath.bezierCurveTo(eyeSize, eyeSize, eyeSize / 2, eyeSize, eyeSize / 2, eyeSize);
+                framePath.bezierCurveTo(eyeSize / 2, eyeSize, 0, eyeSize, 0, eyeSize * 0.75);
+                framePath.lineTo(0, eyeSize * 0.25);
                 framePath.closePath();
                 break;
             case 'flower':
                  const numPetals = 6;
                  for (let i = 0; i < numPetals; i++) {
                    const angle = (i / numPetals) * 2 * Math.PI + (Math.PI / numPetals);
-                   const petalX = Math.cos(angle) * (eyeSize / 4);
-                   const petalY = Math.sin(angle) * (eyeSize / 4);
+                   const petalX = Math.cos(angle) * (eyeSize / 4) + eyeSize/2;
+                   const petalY = Math.sin(angle) * (eyeSize / 4) + eyeSize/2;
                    framePath.moveTo(petalX, petalY);
                    framePath.arc(petalX, petalY, eyeSize / 4, 0, 2 * Math.PI);
                  }
@@ -140,42 +138,25 @@ const drawCustomQr = (qrData: QRCode.QRCode | null, design: Design, bgImage: str
             default: // frame
                 const frameRadius = design.eyeRadius * (moduleSize / 8);
                 const outerPath = new Path2D();
-                outerPath.roundRect(-eyeSize / 2, -eyeSize / 2, eyeSize, eyeSize, [frameRadius]);
+                outerPath.roundRect(0, 0, eyeSize, eyeSize, [frameRadius]);
                 const innerPath = new Path2D();
-                innerPath.roundRect(-eyeSize/2 + moduleSize, -eyeSize/2 + moduleSize, eyeSize - moduleSize*2, eyeSize - moduleSize*2, [frameRadius > 0 ? frameRadius - (moduleSize/2) : 0]);
+                innerPath.roundRect(moduleSize, moduleSize, eyeSize - moduleSize*2, eyeSize - moduleSize*2, [frameRadius > 0 ? frameRadius - (moduleSize/2) : 0]);
                 framePath.addPath(outerPath);
                 framePath.addPath(innerPath);
                 break;
         }
-
         ctx.fill(framePath, 'evenodd');
-
-        // 2. Draw Pupil Background (if not transparent)
-        if (!design.transparentBg) {
-          ctx.fillStyle = design.backgroundColor;
-          const pupilBgPath = new Path2D();
-          switch(style) {
-              case 'circle':
-                  pupilBgPath.arc(0, 0, pupilSize/2, 0, 2*Math.PI);
-                  break;
-              default: // square
-                  const pupilRadius = design.eyeRadius * (moduleSize / 16);
-                  pupilBgPath.roundRect(-pupilSize / 2, -pupilSize / 2, pupilSize, pupilSize, [pupilRadius]);
-                  break;
-          }
-          ctx.fill(pupilBgPath);
-        }
         
-        // 3. Draw Pupil
+        // 2. Draw Pupil
         ctx.fillStyle = design.pixelColor;
         const pupilPath = new Path2D();
         switch(style) {
             case 'circle':
-                pupilPath.arc(0, 0, pupilSize/2, 0, 2*Math.PI);
+                pupilPath.arc(eyeSize/2, eyeSize/2, pupilSize/2, 0, 2*Math.PI);
                 break;
             default: // square
                 const pupilRadius = design.eyeRadius * (moduleSize / 16);
-                pupilPath.roundRect(-pupilSize / 2, -pupilSize / 2, pupilSize, pupilSize, [pupilRadius]);
+                pupilPath.roundRect( (eyeSize - pupilSize)/2, (eyeSize - pupilSize)/2, pupilSize, pupilSize, [pupilRadius]);
                 break;
         }
         ctx.fill(pupilPath);
@@ -235,7 +216,6 @@ const drawCustomQr = (qrData: QRCode.QRCode | null, design: Design, bgImage: str
 const DesignPreview = ({ design, backgroundImage }: { design: Design, backgroundImage: string | null }) => {
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState('');
   const [isLoading, setIsLoading] = useState(true);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
   
   useEffect(() => {
     let isMounted = true;
@@ -440,7 +420,6 @@ export default function QrArtStudio() {
       foregroundColor: "#000000",
       eyeShape: 'frame',
       eyeStyle: 'square',
-      eyeColor: "#000000",
       eyeRadius: 8,
       padding: 16,
       canvasShape: 'square',
@@ -576,10 +555,6 @@ export default function QrArtStudio() {
                                       </SelectContent>
                                   </Select>
                               </div>
-                              <div>
-                                  <Label>Eye Color (Frame)</Label>
-                                  <Input type="color" value={design.eyeColor} onChange={(e) => updateDesign(design.id, { eyeColor: e.target.value })} className="p-1 h-10"/>
-                              </div>
                           </div>
                           <div>
                               <Label>Eye Radius (for 'Frame' shape)</Label>
@@ -598,7 +573,7 @@ export default function QrArtStudio() {
                       {/* Color Settings */}
                        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
                           <div>
-                              <Label>Pixel Color (also for Eye Pupil)</Label>
+                              <Label>Pixel Color (also for Eyes)</Label>
                               <Input type="color" value={design.pixelColor} onChange={(e) => updateDesign(design.id, { pixelColor: e.target.value, pixelGradientStart: '', pixelGradientEnd: '' })} className="p-1 h-10"/>
                               <p className="text-xs text-muted-foreground mt-1">Used if gradients are not set.</p>
                           </div>
