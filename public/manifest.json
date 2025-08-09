@@ -1,6 +1,6 @@
 {
-  "name": "QR Art Studio",
-  "short_name": "QR Art",
+  "name": "SayWith QR Art Studio",
+  "short_name": "SayWith QR",
   "description": "Generate artistic QR codes by injecting them into your own SVG templates.",
   "start_url": "/",
   "display": "standalone",
