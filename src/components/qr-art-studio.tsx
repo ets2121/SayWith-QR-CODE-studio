@@ -284,19 +284,18 @@ const drawCustomQr = (qrData: QRCode.QRCode | null, design: Design, bgImage: str
               framePath.closePath();
               break;
           case 'flower':
-              // A simplified flower shape
-              for(let i = 0; i < 4; i++){
-                ctx.beginPath();
-                const x = eyeSize / 2;
-                const y = eyeSize / 2;
-                const radius = eyeSize/4;
-                const startAngle = (i * 90) * Math.PI/180;
-                const endAngle = ((i+1) * 90) * Math.PI/180;
-                ctx.arc(x, y, radius, startAngle, endAngle);
-                ctx.lineTo(x, y);
-                ctx.closePath();
-                ctx.fill();
+              const petalCount = 8;
+              const outerRadius = eyeSize / 2;
+              const innerRadius = eyeSize / 4;
+              for(let i = 0; i < petalCount; i++) {
+                const angle = (i / petalCount) * (2 * Math.PI);
+                const x1 = eyeSize / 2 + Math.cos(angle) * outerRadius;
+                const y1 = eyeSize / 2 + Math.sin(angle) * outerRadius;
+                const x2 = eyeSize / 2 + Math.cos(angle + (Math.PI / petalCount)) * innerRadius;
+                const y2 = eyeSize / 2 + Math.sin(angle + (Math.PI / petalCount)) * innerRadius;
+                framePath.quadraticCurveTo(x2, y2, x1, y1);
               }
+              framePath.closePath();
               break;
           default: // frame
               framePath.roundRect(0, 0, eyeSize, eyeSize, [frameRadius]);
@@ -323,16 +322,8 @@ const drawCustomQr = (qrData: QRCode.QRCode | null, design: Design, bgImage: str
         if (design.transparentBg) {
             ctx.clearRect(0, 0, eyeSize, eyeSize);
         } else {
-             // To ensure contrast on image backgrounds, use a solid color for eye background
-            if (design.useImage) {
-                 ctx.fillStyle = design.imageOverlayColor || '#FFFFFF';
-                 ctx.globalAlpha = design.imageOverlayOpacity || 0.5;
-                 ctx.fillRect(0, 0, eyeSize, eyeSize);
-                 ctx.globalAlpha = 1.0;
-            } else {
-                ctx.fillStyle = design.backgroundColor;
-                ctx.fillRect(0, 0, eyeSize, eyeSize);
-            }
+            ctx.fillStyle = design.backgroundColor;
+            ctx.fillRect(0, 0, eyeSize, eyeSize);
         }
         ctx.restore();
 
@@ -595,11 +586,11 @@ export default function QrArtStudio() {
     setIsDownloading(false);
   };
   
-  const addDesign = () => {
+  const addDesign = (isImageDesign: boolean) => {
     const newId = designs.length > 0 ? Math.max(...designs.map(d => d.id)) + 1 : 1;
     const newDesign: Design = {
       id: newId,
-      name: `New Design ${newId}`,
+      name: `New ${isImageDesign ? 'Image' : 'Basic'} Design ${newId}`,
       template: svgTemplates[0] || '',
       pixelStyle: "square",
       pixelColor: "#000000",
@@ -611,7 +602,7 @@ export default function QrArtStudio() {
       padding: 16,
       canvasShape: 'square',
       text: "Your Text Here",
-      useImage: false,
+      useImage: isImageDesign,
       imageFilter: 'none',
       imageBlur: 0,
       imageOverlayColor: '#FFFFFF',
@@ -664,6 +655,260 @@ export default function QrArtStudio() {
     </Dialog>
   );
 
+  const renderDesignList = (isImageDesigns: boolean) => {
+      const filteredDesigns = designs.filter(d => !!d.useImage === isImageDesigns);
+
+      return (
+        <div className="space-y-4">
+            <Accordion type="single" collapsible className="w-full">
+            {filteredDesigns.map(design => (
+                <AccordionItem value={`item-${design.id}`} key={design.id}>
+                <AccordionTrigger>
+                    <div className="flex justify-between items-center w-full pr-4">
+                    <Input 
+                        value={design.name} 
+                        onChange={(e) => updateDesign(design.id, { name: e.target.value })}
+                        className="text-base font-medium border-none focus-visible:ring-1"
+                        onClick={(e) => e.stopPropagation()}
+                    />
+                    </div>
+                </AccordionTrigger>
+                <AccordionContent className="p-4 bg-background/50 rounded-md">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div className="md:col-span-2 space-y-6">
+                        {/* Main Settings */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                            <Label>SVG Template</Label>
+                            <Select value={design.template} onValueChange={(v) => updateDesign(design.id, { template: v })}>
+                                <SelectTrigger><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                {svgTemplates.map(template => (
+                                    <SelectItem key={template} value={template}>{template.split('/').pop()}</SelectItem>
+                                ))}
+                                </SelectContent>
+                            </Select>
+                            </div>
+                            <div>
+                                <Label>Pixel Style</Label>
+                                <Select value={design.pixelStyle} onValueChange={(v: Design['pixelStyle']) => updateDesign(design.id, { pixelStyle: v })}>
+                                <SelectTrigger><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="square">Square</SelectItem>
+                                    <SelectItem value="rounded">Rounded</SelectItem>
+                                    <SelectItem value="circle">Circle</SelectItem>
+                                    <SelectItem value="diamond">Diamond</SelectItem>
+                                </SelectContent>
+                                </Select>
+                            </div>
+                        </div>
+
+                        {/* Canvas Settings */}
+                        <div className="p-4 border rounded-lg space-y-4">
+                            <h4 className="font-semibold text-lg">QR Canvas Settings</h4>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div>
+                                    <Label>Canvas Shape</Label>
+                                    <Select value={design.canvasShape} onValueChange={(v: Design['canvasShape']) => updateDesign(design.id, { canvasShape: v })}>
+                                        <SelectTrigger><SelectValue /></SelectTrigger>
+                                        <SelectContent>
+                                        <SelectItem value="square">Square</SelectItem>
+                                        <SelectItem value="circle">Circle</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            </div>
+                            <div>
+                                <Label>QR Code Padding</Label>
+                                <div className="flex items-center gap-4">
+                                    <Slider
+                                    value={[design.padding]}
+                                    onValueChange={(v) => updateDesign(design.id, { padding: v[0] })}
+                                    max={64}
+                                    step={1}
+                                    />
+                                    <span className="text-sm text-muted-foreground w-8">{design.padding}</span>
+                                </div>
+                            </div>
+                        </div>
+
+
+                        {/* Eye Settings */}
+                        <div className="p-4 border rounded-lg space-y-4">
+                            <h4 className="font-semibold text-lg">Eye Customization</h4>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div>
+                                    <Label>Eye Shape</Label>
+                                    <Select value={design.eyeShape} onValueChange={(v: Design['eyeShape']) => updateDesign(design.id, { eyeShape: v })}>
+                                        <SelectTrigger><SelectValue /></SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="frame">Frame</SelectItem>
+                                            <SelectItem value="shield">Shield</SelectItem>
+                                            <SelectItem value="flower">Flower</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div>
+                                    <Label>Eye Pupil Style</Label>
+                                    <Select value={design.eyeStyle} onValueChange={(v: Design['eyeStyle']) => updateDesign(design.id, { eyeStyle: v })}>
+                                        <SelectTrigger><SelectValue /></SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="square">Square</SelectItem>
+                                            <SelectItem value="circle">Circle</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            </div>
+                            <div>
+                                <Label>Eye Radius (for 'Frame' shape)</Label>
+                                <div className="flex items-center gap-4">
+                                    <Slider
+                                    value={[design.eyeRadius]}
+                                    onValueChange={(v) => updateDesign(design.id, { eyeRadius: v[0] })}
+                                    max={30}
+                                    step={1}
+                                    />
+                                    <span className="text-sm text-muted-foreground w-8">{design.eyeRadius}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Color Settings */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+                            <div>
+                                <Label>Pixel Color (also for Eyes)</Label>
+                                <Input type="color" value={design.pixelColor} onChange={(e) => updateDesign(design.id, { pixelColor: e.target.value, pixelGradientStart: '', pixelGradientEnd: '' })} className="p-1 h-10"/>
+                                <p className="text-xs text-muted-foreground mt-1">Used if gradients are not set.</p>
+                            </div>
+                            <div>
+                                <Label>QR Background Color</Label>
+                                <Input type="color" value={design.backgroundColor} onChange={(e) => updateDesign(design.id, { backgroundColor: e.target.value, bgGradientStart: '', bgGradientEnd: '' })} className="p-1 h-10" disabled={design.useImage || design.transparentBg}/>
+                                {(design.useImage || design.transparentBg) && <p className="text-xs text-muted-foreground mt-1">Disabled for image/transparent backgrounds.</p>}
+                            </div>
+                            <div>
+                                <Label>Pixel Gradient Start</Label>
+                                <Input type="color" value={design.pixelGradientStart || '#000000'} onChange={(e) => updateDesign(design.id, { pixelGradientStart: e.target.value })} className="p-1 h-10" disabled={design.useImage}/>
+                            </div>
+                            <div>
+                                <Label>Pixel Gradient End</Label>
+                                <Input type="color" value={design.pixelGradientEnd || '#000000'} onChange={(e) => updateDesign(design.id, { pixelGradientEnd: e.target.value })} className="p-1 h-10" disabled={design.useImage}/>
+                            </div>
+                            <div>
+                                <Label>BG Gradient Start</Label>
+                                <Input type="color" value={design.bgGradientStart || '#FFFFFF'} onChange={(e) => updateDesign(design.id, { bgGradientStart: e.target.value })} className="p-1 h-10" disabled={design.useImage || design.transparentBg}/>
+                            </div>
+                            <div>
+                                <Label>BG Gradient End</Label>
+                                <Input type="color" value={design.bgGradientEnd || '#FFFFFF'} onChange={(e) => updateDesign(design.id, { bgGradientEnd: e.target.value })} className="p-1 h-10" disabled={design.useImage || design.transparentBg}/>
+                            </div>
+                        </div>
+
+                        {/* Image Background Settings */}
+                        {design.useImage && (
+                            <div className="p-4 border rounded-lg space-y-4">
+                                <h4 className="font-semibold text-lg">Image Background Settings</h4>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div>
+                                        <Label>Image Filter</Label>
+                                        <Select value={design.imageFilter} onValueChange={(v: Design['imageFilter']) => updateDesign(design.id, { imageFilter: v })}>
+                                            <SelectTrigger><SelectValue /></SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="none">None</SelectItem>
+                                                <SelectItem value="light">Light</SelectItem>
+                                                <SelectItem value="black-and-white">Black & White</SelectItem>
+                                                <SelectItem value="sketchy">Sketchy</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div>
+                                        <Label>Overlay Color</Label>
+                                        <Input type="color" value={design.imageOverlayColor} onChange={(e) => updateDesign(design.id, { imageOverlayColor: e.target.value })} className="p-1 h-10"/>
+                                    </div>
+                                </div>
+                                <div>
+                                    <Label>Image Blur (px)</Label>
+                                    <div className="flex items-center gap-4">
+                                        <Slider
+                                        value={[design.imageBlur || 0]}
+                                        onValueChange={(v) => updateDesign(design.id, { imageBlur: v[0] })}
+                                        max={20}
+                                        step={1}
+                                        />
+                                        <span className="text-sm text-muted-foreground w-8">{design.imageBlur || 0}</span>
+                                    </div>
+                                </div>
+                                <div>
+                                    <Label>Overlay Opacity</Label>
+                                    <div className="flex items-center gap-4">
+                                        <Slider
+                                        value={[design.imageOverlayOpacity || 0]}
+                                        onValueChange={(v) => updateDesign(design.id, { imageOverlayOpacity: v[0] })}
+                                        max={1}
+                                        step={0.05}
+                                        />
+                                        <span className="text-sm text-muted-foreground w-8">{design.imageOverlayOpacity?.toFixed(2) || 0}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <Label>Foreground Color (for text)</Label>
+                                <Input type="color" value={design.foregroundColor || '#000000'} onChange={(e) => updateDesign(design.id, { foregroundColor: e.target.value })} className="p-1 h-10"/>
+                            </div>
+                            <div className="space-y-2">
+                                <Label>Embedded Text</Label>
+                                <Textarea
+                                    value={design.text || ''}
+                                    onChange={(e) => updateDesign(design.id, { text: e.target.value })}
+                                    placeholder="Enter text to embed in the SVG"
+                                />
+                            </div>
+                        </div>
+
+                        {/* Toggles */}
+                        <div className="flex items-center space-x-4">
+                            <div className="flex items-center space-x-2">
+                                <Switch
+                                    id={`use-image-${design.id}`}
+                                    checked={design.useImage}
+                                    onCheckedChange={(checked) => updateDesign(design.id, { useImage: checked })}
+                                />
+                                <Label htmlFor={`use-image-${design.id}`}>Use Image Background</Label>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                                <Switch
+                                    id={`transparent-bg-${design.id}`}
+                                    checked={!!design.transparentBg}
+                                    onCheckedChange={(checked) => updateDesign(design.id, { transparentBg: checked })}
+                                />
+                                <Label htmlFor={`transparent-bg-${design.id}`}>Transparent QR Background</Label>
+                            </div>
+                        </div>
+                        </div>
+                        
+                        <div className="flex flex-col gap-4">
+                            <h4 className="font-semibold text-lg text-center">Live Preview</h4>
+                            <DesignPreview design={design} backgroundImage={backgroundImage} />
+                            <Button variant="destructive" size="sm" onClick={() => removeDesign(design.id)} className="w-full"><Trash2 className="mr-2"/> Remove Design</Button>
+                        </div>
+                    </div>
+
+                </AccordionContent>
+                </AccordionItem>
+            ))}
+            </Accordion>
+             <div className="flex justify-between items-center mt-4">
+                <Button onClick={() => addDesign(isImageDesigns)}><Plus className="mr-2"/> Add {isImageDesigns ? "Image" : "Basic"} Design</Button>
+                {filteredDesigns.length === 0 && (
+                    <p className="text-sm text-muted-foreground">No {isImageDesigns ? "image" : "basic"} designs yet. Add one to get started!</p>
+                )}
+            </div>
+        </div>
+      );
+  }
+
 
   const renderDesignManager = () => (
     <Card>
@@ -674,250 +919,22 @@ export default function QrArtStudio() {
         </div>
         <AiPromptDialog />
       </CardHeader>
-      <CardContent className="space-y-4">
-        <Accordion type="single" collapsible className="w-full">
-          {designs.map(design => (
-            <AccordionItem value={`item-${design.id}`} key={design.id}>
-              <AccordionTrigger>
-                <div className="flex justify-between items-center w-full pr-4">
-                  <Input 
-                    value={design.name} 
-                    onChange={(e) => updateDesign(design.id, { name: e.target.value })}
-                    className="text-base font-medium border-none focus-visible:ring-1"
-                    onClick={(e) => e.stopPropagation()}
-                  />
-                </div>
-              </AccordionTrigger>
-              <AccordionContent className="p-4 bg-background/50 rounded-md">
-                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div className="md:col-span-2 space-y-6">
-                      {/* Main Settings */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div>
-                          <Label>SVG Template</Label>
-                          <Select value={design.template} onValueChange={(v) => updateDesign(design.id, { template: v })}>
-                            <SelectTrigger><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                              {svgTemplates.map(template => (
-                                <SelectItem key={template} value={template}>{template.split('/').pop()}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div>
-                            <Label>Pixel Style</Label>
-                            <Select value={design.pixelStyle} onValueChange={(v: Design['pixelStyle']) => updateDesign(design.id, { pixelStyle: v })}>
-                              <SelectTrigger><SelectValue /></SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="square">Square</SelectItem>
-                                <SelectItem value="rounded">Rounded</SelectItem>
-                                <SelectItem value="circle">Circle</SelectItem>
-                                <SelectItem value="diamond">Diamond</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                      </div>
-
-                      {/* Canvas Settings */}
-                      <div className="p-4 border rounded-lg space-y-4">
-                          <h4 className="font-semibold text-lg">QR Canvas Settings</h4>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                              <div>
-                                  <Label>Canvas Shape</Label>
-                                  <Select value={design.canvasShape} onValueChange={(v: Design['canvasShape']) => updateDesign(design.id, { canvasShape: v })}>
-                                      <SelectTrigger><SelectValue /></SelectTrigger>
-                                      <SelectContent>
-                                      <SelectItem value="square">Square</SelectItem>
-                                      <SelectItem value="circle">Circle</SelectItem>
-                                      </SelectContent>
-                                  </Select>
-                              </div>
-                          </div>
-                          <div>
-                              <Label>QR Code Padding</Label>
-                              <div className="flex items-center gap-4">
-                                  <Slider
-                                  value={[design.padding]}
-                                  onValueChange={(v) => updateDesign(design.id, { padding: v[0] })}
-                                  max={64}
-                                  step={1}
-                                  />
-                                  <span className="text-sm text-muted-foreground w-8">{design.padding}</span>
-                              </div>
-                          </div>
-                      </div>
-
-
-                      {/* Eye Settings */}
-                      <div className="p-4 border rounded-lg space-y-4">
-                          <h4 className="font-semibold text-lg">Eye Customization</h4>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                              <div>
-                                  <Label>Eye Shape</Label>
-                                  <Select value={design.eyeShape} onValueChange={(v: Design['eyeShape']) => updateDesign(design.id, { eyeShape: v })}>
-                                      <SelectTrigger><SelectValue /></SelectTrigger>
-                                      <SelectContent>
-                                          <SelectItem value="frame">Frame</SelectItem>
-                                          <SelectItem value="shield">Shield</SelectItem>
-                                          <SelectItem value="flower">Flower</SelectItem>
-                                      </SelectContent>
-                                  </Select>
-                              </div>
-                              <div>
-                                  <Label>Eye Pupil Style</Label>
-                                  <Select value={design.eyeStyle} onValueChange={(v: Design['eyeStyle']) => updateDesign(design.id, { eyeStyle: v })}>
-                                      <SelectTrigger><SelectValue /></SelectTrigger>
-                                      <SelectContent>
-                                          <SelectItem value="square">Square</SelectItem>
-                                          <SelectItem value="circle">Circle</SelectItem>
-                                      </SelectContent>
-                                  </Select>
-                              </div>
-                          </div>
-                          <div>
-                              <Label>Eye Radius (for 'Frame' shape)</Label>
-                              <div className="flex items-center gap-4">
-                                  <Slider
-                                  value={[design.eyeRadius]}
-                                  onValueChange={(v) => updateDesign(design.id, { eyeRadius: v[0] })}
-                                  max={30}
-                                  step={1}
-                                  />
-                                  <span className="text-sm text-muted-foreground w-8">{design.eyeRadius}</span>
-                              </div>
-                          </div>
-                      </div>
-
-                      {/* Color Settings */}
-                       <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
-                          <div>
-                              <Label>Pixel Color (also for Eyes)</Label>
-                              <Input type="color" value={design.pixelColor} onChange={(e) => updateDesign(design.id, { pixelColor: e.target.value, pixelGradientStart: '', pixelGradientEnd: '' })} className="p-1 h-10"/>
-                              <p className="text-xs text-muted-foreground mt-1">Used if gradients are not set.</p>
-                          </div>
-                          <div>
-                              <Label>QR Background Color</Label>
-                              <Input type="color" value={design.backgroundColor} onChange={(e) => updateDesign(design.id, { backgroundColor: e.target.value, bgGradientStart: '', bgGradientEnd: '' })} className="p-1 h-10" disabled={design.useImage || design.transparentBg}/>
-                              {(design.useImage || design.transparentBg) && <p className="text-xs text-muted-foreground mt-1">Disabled for image/transparent backgrounds.</p>}
-                          </div>
-                          <div>
-                              <Label>Pixel Gradient Start</Label>
-                              <Input type="color" value={design.pixelGradientStart || '#000000'} onChange={(e) => updateDesign(design.id, { pixelGradientStart: e.target.value })} className="p-1 h-10" disabled={design.useImage}/>
-                          </div>
-                          <div>
-                              <Label>Pixel Gradient End</Label>
-                              <Input type="color" value={design.pixelGradientEnd || '#000000'} onChange={(e) => updateDesign(design.id, { pixelGradientEnd: e.target.value })} className="p-1 h-10" disabled={design.useImage}/>
-                          </div>
-                          <div>
-                              <Label>BG Gradient Start</Label>
-                              <Input type="color" value={design.bgGradientStart || '#FFFFFF'} onChange={(e) => updateDesign(design.id, { bgGradientStart: e.target.value })} className="p-1 h-10" disabled={design.useImage || design.transparentBg}/>
-                          </div>
-                          <div>
-                              <Label>BG Gradient End</Label>
-                              <Input type="color" value={design.bgGradientEnd || '#FFFFFF'} onChange={(e) => updateDesign(design.id, { bgGradientEnd: e.target.value })} className="p-1 h-10" disabled={design.useImage || design.transparentBg}/>
-                          </div>
-                      </div>
-
-                       {/* Image Background Settings */}
-                      {design.useImage && (
-                        <div className="p-4 border rounded-lg space-y-4">
-                            <h4 className="font-semibold text-lg">Image Background Settings</h4>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div>
-                                    <Label>Image Filter</Label>
-                                    <Select value={design.imageFilter} onValueChange={(v: Design['imageFilter']) => updateDesign(design.id, { imageFilter: v })}>
-                                        <SelectTrigger><SelectValue /></SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="none">None</SelectItem>
-                                            <SelectItem value="light">Light</SelectItem>
-                                            <SelectItem value="black-and-white">Black & White</SelectItem>
-                                            <SelectItem value="sketchy">Sketchy</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                                <div>
-                                    <Label>Overlay Color</Label>
-                                    <Input type="color" value={design.imageOverlayColor} onChange={(e) => updateDesign(design.id, { imageOverlayColor: e.target.value })} className="p-1 h-10"/>
-                                </div>
-                            </div>
-                             <div>
-                                <Label>Image Blur (px)</Label>
-                                <div className="flex items-center gap-4">
-                                    <Slider
-                                    value={[design.imageBlur || 0]}
-                                    onValueChange={(v) => updateDesign(design.id, { imageBlur: v[0] })}
-                                    max={20}
-                                    step={1}
-                                    />
-                                    <span className="text-sm text-muted-foreground w-8">{design.imageBlur || 0}</span>
-                                </div>
-                            </div>
-                            <div>
-                                <Label>Overlay Opacity</Label>
-                                <div className="flex items-center gap-4">
-                                    <Slider
-                                    value={[design.imageOverlayOpacity || 0]}
-                                    onValueChange={(v) => updateDesign(design.id, { imageOverlayOpacity: v[0] })}
-                                    max={1}
-                                    step={0.05}
-                                    />
-                                    <span className="text-sm text-muted-foreground w-8">{design.imageOverlayOpacity?.toFixed(2) || 0}</span>
-                                </div>
-                            </div>
-                        </div>
-                      )}
-                      
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                          <div>
-                              <Label>Foreground Color (for text)</Label>
-                              <Input type="color" value={design.foregroundColor || '#000000'} onChange={(e) => updateDesign(design.id, { foregroundColor: e.target.value })} className="p-1 h-10"/>
-                          </div>
-                          <div className="space-y-2">
-                              <Label>Embedded Text</Label>
-                              <Textarea
-                                value={design.text || ''}
-                                onChange={(e) => updateDesign(design.id, { text: e.target.value })}
-                                placeholder="Enter text to embed in the SVG"
-                              />
-                          </div>
-                      </div>
-
-                      {/* Toggles */}
-                      <div className="flex items-center space-x-4">
-                          <div className="flex items-center space-x-2">
-                              <Switch
-                                  id={`use-image-${design.id}`}
-                                  checked={design.useImage}
-                                  onCheckedChange={(checked) => updateDesign(design.id, { useImage: checked })}
-                              />
-                              <Label htmlFor={`use-image-${design.id}`}>Use Image Background</Label>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                              <Switch
-                                  id={`transparent-bg-${design.id}`}
-                                  checked={!!design.transparentBg}
-                                  onCheckedChange={(checked) => updateDesign(design.id, { transparentBg: checked })}
-                              />
-                              <Label htmlFor={`transparent-bg-${design.id}`}>Transparent QR Background</Label>
-                          </div>
-                      </div>
-                    </div>
-                    
-                    <div className="flex flex-col gap-4">
-                        <h4 className="font-semibold text-lg text-center">Live Preview</h4>
-                        <DesignPreview design={design} backgroundImage={backgroundImage} />
-                         <Button variant="destructive" size="sm" onClick={() => removeDesign(design.id)} className="w-full"><Trash2 className="mr-2"/> Remove Design</Button>
-                    </div>
-                 </div>
-
-              </AccordionContent>
-            </AccordionItem>
-          ))}
-        </Accordion>
+      <CardContent>
+        <Tabs defaultValue="basic" className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="basic">Basic QR Designs</TabsTrigger>
+                <TabsTrigger value="image">Image Background Designs</TabsTrigger>
+            </TabsList>
+            <TabsContent value="basic" className="mt-6">
+                {renderDesignList(false)}
+            </TabsContent>
+            <TabsContent value="image" className="mt-6">
+                {renderDesignList(true)}
+            </TabsContent>
+        </Tabs>
       </CardContent>
-      <CardFooter className="flex justify-between">
-        <Button onClick={addDesign}><Plus className="mr-2"/> Add Design</Button>
-        <Button onClick={saveDesignsToJson} variant="outline">Save designs.json</Button>
+      <CardFooter>
+        <Button onClick={saveDesignsToJson} variant="outline">Save All Designs to designs.json</Button>
       </CardFooter>
     </Card>
   );
