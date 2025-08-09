@@ -14,7 +14,7 @@ import { Design, GeneratedQr } from '@/lib/types';
 import QRCode from 'qrcode';
 import { saveAs } from 'file-saver';
 import JSZip from 'jszip';
-import { QrCode, Palette, Download, Trash2, Plus, Settings, Loader2, Image as ImageIcon, X, Clipboard } from 'lucide-react';
+import { QrCode, Palette, Download, Trash2, Plus, Settings, Loader2, Image as ImageIcon, X, Clipboard, Upload } from 'lucide-react';
 import { Skeleton } from './ui/skeleton';
 import { Switch } from './ui/switch';
 import { Textarea } from './ui/textarea';
@@ -88,8 +88,6 @@ This is the most critical part of the application. Create a function that draws 
 ---
 
 ### **Type Definitions (\`types.ts\`)**
-
-Define a comprehensive \`Design\` interface with all possible customization properties:
 
 \`\`\`typescript
 export interface Design {
@@ -455,21 +453,10 @@ export default function QrArtStudio() {
   const [backgroundImage, setBackgroundImage] = useState<string | null>(null);
   const { toast } = useToast();
   const previewContainerRef = useRef<HTMLDivElement>(null);
+  const [templateFile, setTemplateFile] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
 
-  useEffect(() => {
-    // Fetch designs
-    fetch('/designs.json')
-      .then((res) => res.json())
-      .then((data: Design[]) => setDesigns(data))
-      .catch(() => {
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: "Could not load designs.json. Make sure it exists in the public folder.",
-        });
-      });
-      
-    // Fetch SVG templates
+  const fetchTemplates = React.useCallback(() => {
     fetch('/api/templates')
       .then((res) => res.json())
       .then((data: string[]) => {
@@ -493,6 +480,23 @@ export default function QrArtStudio() {
       });
   }, [toast]);
 
+  useEffect(() => {
+    // Fetch designs
+    fetch('/designs.json')
+      .then((res) => res.json())
+      .then((data: Design[]) => setDesigns(data))
+      .catch(() => {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Could not load designs.json. Make sure it exists in the public folder.",
+        });
+      });
+      
+    // Fetch SVG templates
+    fetchTemplates();
+  }, [toast, fetchTemplates]);
+
   const handleBackgroundImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -503,6 +507,45 @@ export default function QrArtStudio() {
       reader.readAsDataURL(file);
     }
   };
+
+  const handleTemplateUpload = async () => {
+    if (!templateFile) {
+      toast({ variant: "destructive", title: "No file selected", description: "Please choose an SVG file to upload." });
+      return;
+    }
+    setIsUploading(true);
+
+    const formData = new FormData();
+    formData.append('file', templateFile);
+
+    try {
+      const response = await fetch('/api/upload-template', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to upload template');
+      }
+
+      toast({
+        title: "Success!",
+        description: "Your SVG template has been uploaded.",
+      });
+      setTemplateFile(null); // Clear the file input
+      fetchTemplates(); // Refresh the template list
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Upload Failed",
+        description: error.message,
+      });
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
 
   const handleGenerate = async () => {
     if (!content) {
@@ -921,32 +964,57 @@ export default function QrArtStudio() {
 
 
   const renderDesignManager = () => (
-    <Card>
-      <CardHeader className="flex-row items-center justify-between">
-        <div>
-            <CardTitle className="font-headline flex items-center gap-2"><Palette />Design Presets</CardTitle>
-            <CardDescription>Manage your QR code design templates. These settings will be saved to `designs.json`.</CardDescription>
-        </div>
-        <AiPromptDialog />
-      </CardHeader>
-      <CardContent>
-        <Tabs defaultValue="basic" className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="basic">Basic QR Designs</TabsTrigger>
-                <TabsTrigger value="image">Image Background Designs</TabsTrigger>
-            </TabsList>
-            <TabsContent value="basic" className="mt-6">
-                {renderDesignList(false)}
-            </TabsContent>
-            <TabsContent value="image" className="mt-6">
-                {renderDesignList(true)}
-            </TabsContent>
-        </Tabs>
-      </CardContent>
-      <CardFooter>
-        <Button onClick={saveDesignsToJson} variant="outline">Save All Designs to designs.json</Button>
-      </CardFooter>
-    </Card>
+    <div className="space-y-6">
+        <Card>
+            <CardHeader className="flex-row items-center justify-between">
+                <div>
+                    <CardTitle className="font-headline flex items-center gap-2"><Palette />Design Presets</CardTitle>
+                    <CardDescription>Manage your QR code design templates. These settings will be saved to `designs.json`.</CardDescription>
+                </div>
+                <AiPromptDialog />
+            </CardHeader>
+            <CardContent>
+                <Tabs defaultValue="basic" className="w-full">
+                    <TabsList className="grid w-full grid-cols-2">
+                        <TabsTrigger value="basic">Basic QR Designs</TabsTrigger>
+                        <TabsTrigger value="image">Image Background Designs</TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="basic" className="mt-6">
+                        {renderDesignList(false)}
+                    </TabsContent>
+                    <TabsContent value="image" className="mt-6">
+                        {renderDesignList(true)}
+                    </TabsContent>
+                </Tabs>
+            </CardContent>
+            <CardFooter>
+                <Button onClick={saveDesignsToJson} variant="outline">Save All Designs to designs.json</Button>
+            </CardFooter>
+        </Card>
+        
+        <Card>
+            <CardHeader>
+                <CardTitle className="font-headline flex items-center gap-2"><Upload />Upload New Template</CardTitle>
+                <CardDescription>Upload your own custom SVG files to use as templates for your QR codes.</CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-col sm:flex-row items-center gap-4">
+                <div className="w-full">
+                    <Label htmlFor="template-upload">SVG Template File</Label>
+                    <Input 
+                        id="template-upload" 
+                        type="file" 
+                        accept=".svg,image/svg+xml" 
+                        onChange={(e) => setTemplateFile(e.target.files?.[0] || null)}
+                        className="file:text-foreground"
+                    />
+                </div>
+                <Button onClick={handleTemplateUpload} disabled={isUploading || !templateFile} className="w-full sm:w-auto mt-4 sm:mt-0 self-end">
+                    {isUploading ? <Loader2 className="mr-2 animate-spin" /> : <Upload className="mr-2" />}
+                    Upload
+                </Button>
+            </CardContent>
+        </Card>
+    </div>
   );
 
   return (
@@ -1052,3 +1120,4 @@ export default function QrArtStudio() {
     </div>
   );
 }
+
