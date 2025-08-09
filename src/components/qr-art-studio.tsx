@@ -14,7 +14,7 @@ import { Design, GeneratedQr } from '@/lib/types';
 import QRCode from 'qrcode';
 import { saveAs } from 'file-saver';
 import JSZip from 'jszip';
-import { QrCode, Palette, Download, Trash2, Plus, Settings, Loader2, Image as ImageIcon, X, Clipboard, Upload } from 'lucide-react';
+import { QrCode, Palette, Download, Trash2, Plus, Settings, Loader2, Image as ImageIcon, X, Upload, Clipboard } from 'lucide-react';
 import { Skeleton } from './ui/skeleton';
 import { Switch } from './ui/switch';
 import { Textarea } from './ui/textarea';
@@ -483,6 +483,17 @@ export default function QrArtStudio() {
   }, [toast]);
 
   useEffect(() => {
+    // Register service worker for PWA
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js').then(registration => {
+          console.log('SW registered: ', registration);
+        }).catch(registrationError => {
+          console.log('SW registration failed: ', registrationError);
+        });
+      });
+    }
+
     // Fetch designs
     fetch('/designs.json')
       .then((res) => res.json())
