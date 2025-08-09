@@ -2,23 +2,37 @@
 export interface Design {
   id: number;
   name: string;
-  template: string; // Path to the SVG template
+  template: string;
+  
+  // Pixel Styling
   pixelStyle: 'square' | 'rounded' | 'circle' | 'diamond';
   pixelColor: string;
-  backgroundColor: string; // For the QR code itself, can be 'transparent'
-  foregroundColor: string;
-  eyeShape: 'frame' | 'shield' | 'flower';
-  eyeStyle: 'square' | 'circle';
-  eyeRadius: number; // Corner radius for the eyes
-  padding: number; // Whitespace around the QR code
-  canvasShape: 'square' | 'circle';
-  text?: string;
-  useImage?: boolean;
-  transparentBg?: boolean;
   pixelGradientStart?: string;
   pixelGradientEnd?: string;
+
+  // Eye Styling
+  eyeShape: 'frame' | 'shield' | 'flower';
+  eyeStyle: 'square' | 'circle';
+  eyeRadius: number;
+
+  // Background & Canvas
+  backgroundColor: string;
   bgGradientStart?: string;
   bgGradientEnd?: string;
+  transparentBg?: boolean;
+  padding: number;
+  canvasShape: 'square' | 'circle';
+
+  // Image Background Settings
+  useImage?: boolean;
+  imageFilter: 'none' | 'light' | 'black-and-white' | 'sketchy';
+  imageOverlayColor?: string;
+  imageOverlayOpacity?: number;
+  imageBlur?: number;
+
+  // SVG Template Settings
+  text?: string;
+  foregroundColor: string;
 }
 
 export interface GeneratedQr {

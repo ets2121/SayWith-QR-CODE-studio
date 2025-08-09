@@ -157,7 +157,7 @@ const drawCustomQr = (qrData: QRCode.QRCode | null, design: Design, bgImage: str
         return new Promise<void>((bgResolve) => {
           ctx.clearRect(0, 0, canvasSize, canvasSize);
 
-          if (design.transparentBg) {
+          if (design.transparentBg && !design.useImage) {
               bgResolve();
               return;
           }
@@ -165,24 +165,33 @@ const drawCustomQr = (qrData: QRCode.QRCode | null, design: Design, bgImage: str
           if (design.useImage && bgImage) {
             const img = new Image();
             img.onload = () => {
+              // Fill quiet zone with solid color first
+              ctx.fillStyle = design.backgroundColor;
+              ctx.fillRect(0, 0, canvasSize, canvasSize);
+
+              ctx.save();
+              // Clip the region where the image will be drawn (inside the padding)
+              ctx.beginPath();
+              ctx.rect(padding, padding, qrRegionSize, qrRegionSize);
+              ctx.clip();
+              
               const imgAspectRatio = img.width / img.height;
-              const canvasAspectRatio = canvasSize / canvasSize;
-              let renderWidth = canvasSize;
-              let renderHeight = canvasSize;
-              let x = 0;
-              let y = 0;
+              const canvasAspectRatio = qrRegionSize / qrRegionSize;
+              let renderWidth = qrRegionSize;
+              let renderHeight = qrRegionSize;
+              let x = padding;
+              let y = padding;
 
               if (imgAspectRatio > canvasAspectRatio) {
-                renderHeight = canvasSize;
+                renderHeight = qrRegionSize;
                 renderWidth = renderHeight * imgAspectRatio;
-                x = (canvasSize - renderWidth) / 2;
+                x = padding + (qrRegionSize - renderWidth) / 2;
               } else {
-                renderWidth = canvasSize;
+                renderWidth = qrRegionSize;
                 renderHeight = renderWidth / imgAspectRatio;
-                y = (canvasSize - renderHeight) / 2;
+                y = padding + (qrRegionSize - renderHeight) / 2;
               }
               
-              ctx.save();
               const filterParts = [];
               if (design.imageBlur && design.imageBlur > 0) {
                 filterParts.push(`blur(${design.imageBlur}px)`);
@@ -202,13 +211,14 @@ const drawCustomQr = (qrData: QRCode.QRCode | null, design: Design, bgImage: str
               if (design.imageOverlayColor) {
                   ctx.globalAlpha = design.imageOverlayOpacity || 0.5;
                   ctx.fillStyle = design.imageOverlayColor;
-                  ctx.fillRect(0, 0, canvasSize, canvasSize);
+                  ctx.fillRect(padding, padding, qrRegionSize, qrRegionSize);
               }
-
-              ctx.restore();
+              
+              ctx.restore(); // Restore from clipping
               bgResolve();
             };
             img.onerror = () => {
+              // Fallback if image fails to load
               ctx.fillStyle = design.backgroundColor;
               ctx.fillRect(0, 0, canvasSize, canvasSize);
               bgResolve();
