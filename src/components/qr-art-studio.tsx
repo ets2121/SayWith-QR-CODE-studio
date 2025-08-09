@@ -154,8 +154,13 @@ const drawCustomQr = (qrData: QRCode.QRCode | null, design: Design, bgImage: str
       const drawBackground = () => {
         return new Promise<void>((bgResolve) => {
           ctx.clearRect(0, 0, canvasSize, canvasSize);
+          
+          // Fill quiet zone first
+          ctx.fillStyle = design.backgroundColor;
+          ctx.fillRect(0, 0, canvasSize, canvasSize);
 
           if (design.transparentBg && !design.useImage) {
+              ctx.clearRect(0, 0, canvasSize, canvasSize);
               bgResolve();
               return;
           }
@@ -163,10 +168,6 @@ const drawCustomQr = (qrData: QRCode.QRCode | null, design: Design, bgImage: str
           if (design.useImage && bgImage) {
             const img = new Image();
             img.onload = () => {
-              // Fill quiet zone with solid color first
-              ctx.fillStyle = design.backgroundColor;
-              ctx.fillRect(0, 0, canvasSize, canvasSize);
-
               ctx.save();
               // Clip the region where the image will be drawn (inside the padding)
               ctx.beginPath();
@@ -218,7 +219,7 @@ const drawCustomQr = (qrData: QRCode.QRCode | null, design: Design, bgImage: str
             img.onerror = () => {
               // Fallback if image fails to load
               ctx.fillStyle = design.backgroundColor;
-              ctx.fillRect(0, 0, canvasSize, canvasSize);
+              ctx.fillRect(padding, padding, qrRegionSize, qrRegionSize);
               bgResolve();
             };
             img.src = bgImage;
@@ -229,9 +230,9 @@ const drawCustomQr = (qrData: QRCode.QRCode | null, design: Design, bgImage: str
               gradient.addColorStop(1, design.bgGradientEnd);
               ctx.fillStyle = gradient;
             } else {
-              ctx.fillStyle = design.backgroundColor;
+              // Background color is already set for quiet zone
             }
-            ctx.fillRect(0, 0, canvasSize, canvasSize);
+            ctx.fillRect(padding, padding, qrRegionSize, qrRegionSize);
             bgResolve();
           }
         });
@@ -327,7 +328,7 @@ const drawCustomQr = (qrData: QRCode.QRCode | null, design: Design, bgImage: str
         
         ctx.save();
         ctx.clip(pupilBgPath);
-        if (design.transparentBg) {
+        if (design.transparentBg && !design.useImage) { // Also check for image use
             ctx.clearRect(0, 0, eyeSize, eyeSize);
         } else {
             ctx.fillStyle = design.backgroundColor;
@@ -450,6 +451,7 @@ export default function QrArtStudio() {
   const [generatedQrs, setGeneratedQrs] = useState<GeneratedQr[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [backgroundImage, setBackgroundImage] = useState<string | null>(null);
   const { toast } = useToast();
   const previewContainerRef = useRef<HTMLDivElement>(null);
@@ -677,11 +679,32 @@ export default function QrArtStudio() {
     setDesigns(designs.filter(d => d.id !== id));
   };
   
-  const saveDesignsToJson = () => {
-    const jsonString = JSON.stringify(designs, null, 2);
-    const blob = new Blob([jsonString], { type: 'application/json' });
-    saveAs(blob, 'designs.json');
-    toast({ title: "Designs Saved", description: "Your designs.json file has been prepared for download." });
+  const saveDesignsToServer = async () => {
+    setIsSaving(true);
+    try {
+      const response = await fetch('/api/save-designs', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(designs, null, 2),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to save designs');
+      }
+
+      toast({ title: "Designs Saved", description: "Your designs have been saved successfully on the server." });
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Save Failed",
+        description: error.message,
+      });
+    } finally {
+      setIsSaving(false);
+    }
   };
   
   const AiPromptDialog = () => (
@@ -969,7 +992,7 @@ export default function QrArtStudio() {
             <CardHeader className="flex-row items-center justify-between">
                 <div>
                     <CardTitle className="font-headline flex items-center gap-2"><Palette />Design Presets</CardTitle>
-                    <CardDescription>Manage your QR code design templates. These settings will be saved to `designs.json`.</CardDescription>
+                    <CardDescription>Manage your QR code design templates. These settings will be saved to the server.</CardDescription>
                 </div>
                 <AiPromptDialog />
             </CardHeader>
@@ -988,7 +1011,10 @@ export default function QrArtStudio() {
                 </Tabs>
             </CardContent>
             <CardFooter>
-                <Button onClick={saveDesignsToJson} variant="outline">Save All Designs to designs.json</Button>
+                <Button onClick={saveDesignsToServer} variant="outline" disabled={isSaving}>
+                  {isSaving ? <Loader2 className="mr-2 animate-spin" /> : <Download className="mr-2" />}
+                  {isSaving ? 'Saving...' : 'Save All Designs'}
+                </Button>
             </CardFooter>
         </Card>
         
@@ -1120,4 +1146,3 @@ export default function QrArtStudio() {
     </div>
   );
 }
-
