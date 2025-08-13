@@ -3,6 +3,7 @@ export interface Design {
   id: number;
   name: string;
   template: string;
+  qrCodeImageTagIndex: number;
   
   // Pixel Styling
   pixelStyle: 'square' | 'rounded' | 'circle' | 'diamond';

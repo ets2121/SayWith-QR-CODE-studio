@@ -94,6 +94,7 @@ export interface Design {
   id: number;
   name: string;
   template: string;
+  qrCodeImageTagIndex: number;
   
   // Pixel Styling
   pixelStyle: 'square' | 'rounded' | 'circle' | 'diamond';
@@ -585,8 +586,19 @@ export default function QrArtStudio() {
         }
         let svgText = await templateResponse.text();
         
-        // Use a more robust regex that handles different quote styles and xlink:href
-        svgText = svgText.replace(/(<image[^>]*?(?:href|xlink:href)=)(["'])(?:[^"']*)(\2)/, `$1$2${qrCodeDataUrl}$3`);
+        const imageTagRegex = /<image[^>]*>/g;
+        const matches = svgText.match(imageTagRegex);
+        const indexToReplace = (design.qrCodeImageTagIndex || 1) - 1;
+
+        if (matches && matches.length > indexToReplace) {
+            const originalImageTag = matches[indexToReplace];
+            const hrefRegex = /(href|xlink:href)=["'](.*?)["']/;
+            const newImageTag = originalImageTag.replace(hrefRegex, `$1="${qrCodeDataUrl}"`);
+            svgText = svgText.replace(originalImageTag, newImageTag);
+        } else {
+            toast({ variant: "destructive", title: `Template Error for "${design.name}"`, description: `Could not find image tag at index ${indexToReplace + 1}.` });
+        }
+
 
         if (design.text) {
            svgText = svgText.replace(/(<text[^>]*>)\s*TEXT\s*(<\/text>)/g, `$1${design.text}$2`);
@@ -658,6 +670,7 @@ export default function QrArtStudio() {
       id: newId,
       name: `New ${isImageDesign ? 'Image' : 'Basic'} Design ${newId}`,
       template: svgTemplates[0] || '',
+      qrCodeImageTagIndex: 1,
       pixelStyle: "square",
       pixelColor: "#000000",
       backgroundColor: "#FFFFFF",
@@ -766,15 +779,15 @@ export default function QrArtStudio() {
                         {/* Main Settings */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div>
-                            <Label>SVG Template</Label>
-                            <Select value={design.template} onValueChange={(v) => updateDesign(design.id, { template: v })}>
-                                <SelectTrigger><SelectValue /></SelectTrigger>
-                                <SelectContent>
-                                {svgTemplates.map(template => (
-                                    <SelectItem key={template} value={template}>{template.split('/').pop()}</SelectItem>
-                                ))}
-                                </SelectContent>
-                            </Select>
+                                <Label>SVG Template</Label>
+                                <Select value={design.template} onValueChange={(v) => updateDesign(design.id, { template: v })}>
+                                    <SelectTrigger><SelectValue /></SelectTrigger>
+                                    <SelectContent>
+                                    {svgTemplates.map(template => (
+                                        <SelectItem key={template} value={template}>{template.split('/').pop()}</SelectItem>
+                                    ))}
+                                    </SelectContent>
+                                </Select>
                             </div>
                             <div>
                                 <Label>Pixel Style</Label>
@@ -787,6 +800,17 @@ export default function QrArtStudio() {
                                     <SelectItem value="diamond">Diamond</SelectItem>
                                 </SelectContent>
                                 </Select>
+                            </div>
+                             <div>
+                                <Label htmlFor={`qr-index-${design.id}`}>QR Code Image Tag Index</Label>
+                                <Input
+                                    id={`qr-index-${design.id}`}
+                                    type="number"
+                                    min="1"
+                                    value={design.qrCodeImageTagIndex}
+                                    onChange={(e) => updateDesign(design.id, { qrCodeImageTagIndex: parseInt(e.target.value, 10) || 1 })}
+                                />
+                                <p className="text-xs text-muted-foreground mt-1">1 for first image tag, 2 for second, etc.</p>
                             </div>
                         </div>
 
