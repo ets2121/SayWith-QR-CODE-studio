@@ -1097,11 +1097,15 @@ export default function QrArtStudio() {
       <Dialog open={isLoading}>
         <DialogContent className="max-w-sm text-center" hideCloseButton>
             <DialogHeader>
-            <DialogTitle className="font-headline text-2xl">Generating QR Codes</DialogTitle>
+              <DialogTitle className="font-headline text-2xl">Generating QR Codes</DialogTitle>
             </DialogHeader>
             <div className="flex flex-col items-center gap-4 py-8">
-                <Loader2 className="w-16 h-16 animate-spin text-primary" />
-                <p className="text-muted-foreground">Please wait while we create your designs...</p>
+              <div className="flex justify-center items-center space-x-2">
+                  <div className="w-4 h-4 rounded-full bg-primary animate-pulse-square [animation-delay:-0.3s]"></div>
+                  <div className="w-4 h-4 rounded-full bg-primary animate-pulse-square [animation-delay:-0.15s]"></div>
+                  <div className="w-4 h-4 rounded-full bg-primary animate-pulse-square"></div>
+              </div>
+              <p className="text-muted-foreground">Please wait while we create your designs...</p>
             </div>
         </DialogContent>
       </Dialog>
