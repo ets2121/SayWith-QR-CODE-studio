@@ -497,7 +497,12 @@ export default function QrArtStudio() {
 
     // Fetch designs
     fetch('/designs.json')
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) {
+          throw new Error('Could not find designs.json');
+        }
+        return res.json();
+      })
       .then((data: Design[]) => setDesigns(data))
       .catch(() => {
         toast({
@@ -544,6 +549,7 @@ export default function QrArtStudio() {
       }
 
       toast({
+        variant: "success",
         title: "Success!",
         description: "Your SVG template has been uploaded.",
       });
@@ -575,6 +581,9 @@ export default function QrArtStudio() {
     setGeneratedQrs([]);
 
     try {
+      // Small delay to allow loading dialog to render
+      await new Promise(resolve => setTimeout(resolve, 50));
+
       const qrResults: GeneratedQr[] = [];
       const qrData = QRCode.create(content, { errorCorrectionLevel: 'H' });
 
@@ -621,6 +630,7 @@ export default function QrArtStudio() {
 
       if (qrResults.length > 0) {
         toast({
+          variant: "success",
           title: "Success",
           description: `QR codes generated for ${qrResults.length} design(s).`,
         });
@@ -723,7 +733,7 @@ export default function QrArtStudio() {
         throw new Error(errorData.error || 'Failed to save designs');
       }
 
-      toast({ title: "Designs Saved", description: "Your designs have been saved successfully on the server." });
+      toast({ variant: "success", title: "Designs Saved", description: "Your designs have been saved successfully on the server." });
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -1084,6 +1094,17 @@ export default function QrArtStudio() {
 
   return (
     <div className="space-y-8">
+      <Dialog open={isLoading}>
+        <DialogContent className="max-w-sm text-center" hideCloseButton>
+            <DialogHeader>
+            <DialogTitle className="font-headline text-2xl">Generating QR Codes</DialogTitle>
+            </DialogHeader>
+            <div className="flex flex-col items-center gap-4 py-8">
+                <Loader2 className="w-16 h-16 animate-spin text-primary" />
+                <p className="text-muted-foreground">Please wait while we create your designs...</p>
+            </div>
+        </DialogContent>
+      </Dialog>
       <header className="text-center">
         <h1 className="text-4xl md:text-6xl font-headline font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary to-accent">
           SayWith
@@ -1154,7 +1175,7 @@ export default function QrArtStudio() {
         </TabsContent>
       </Tabs>
       
-      { (isLoading || generatedQrs.length > 0) && (
+      { (generatedQrs.length > 0) && (
         <section className="space-y-4">
             <div className="flex justify-between items-center">
                 <h2 className="text-3xl font-headline font-bold">Preview</h2>
@@ -1164,13 +1185,7 @@ export default function QrArtStudio() {
                 </Button>
             </div>
             <div ref={previewContainerRef} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                {isLoading && Array.from({ length: designs.length }).map((_, i) => (
-                    <Card key={i} className="flex flex-col items-center justify-center p-4 aspect-square">
-                        <Skeleton className="w-full h-full rounded-lg" />
-                        <Skeleton className="h-4 w-3/4 mt-4" />
-                    </Card>
-                ))}
-                {!isLoading && generatedQrs.map(qr => {
+                {generatedQrs.map(qr => {
                     const design = designs.find(d => d.id === qr.designId);
                     return (
                         <Card key={qr.designId} className="p-4 flex flex-col items-center">
