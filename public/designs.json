@@ -2,15 +2,15 @@
   {
     "id": 2,
     "name": "New Basic Design 2",
-    "template": "/templates/Black and Blue Simple Male Cool Instagram Profile Picture_20250813_104553_0000.svg",
+    "template": "/templates/Black and Green Music Player Instagram Post_20250801_161205_0000.svg",
     "pixelStyle": "square",
-    "pixelColor": "#000000",
-    "backgroundColor": "#FFFFFF",
+    "pixelColor": "#00ff00",
+    "backgroundColor": "#000000",
     "foregroundColor": "#000000",
     "eyeShape": "frame",
     "eyeStyle": "square",
-    "eyeRadius": 8,
-    "padding": 16,
+    "eyeRadius": 18,
+    "padding": 39,
     "canvasShape": "square",
     "text": "Your Text Here",
     "useImage": false,
@@ -18,10 +18,11 @@
     "imageBlur": 0,
     "imageOverlayColor": "#FFFFFF",
     "imageOverlayOpacity": 0.5,
-    "transparentBg": true,
+    "transparentBg": false,
     "pixelGradientStart": "",
     "pixelGradientEnd": "",
     "bgGradientStart": "",
-    "bgGradientEnd": ""
+    "bgGradientEnd": "",
+    "qrCodeImageTagIndex": 2
   }
 ]
