@@ -3,7 +3,7 @@ import './globals.css';
 import { Toaster } from "@/components/ui/toaster"
 
 export const metadata: Metadata = {
-  title: 'QR Art Studio',
+  title: 'SayWith',
   description: 'Generate beautiful and artistic QR codes',
   manifest: '/manifest.json',
 };

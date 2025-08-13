@@ -1058,7 +1058,7 @@ export default function QrArtStudio() {
     <div className="space-y-8">
       <header className="text-center">
         <h1 className="text-4xl md:text-6xl font-headline font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary to-accent">
-          QR Art Studio
+          SayWith
         </h1>
         <p className="mt-2 text-lg text-muted-foreground">
           Generate artistic QR codes by injecting them into your own SVG templates.
