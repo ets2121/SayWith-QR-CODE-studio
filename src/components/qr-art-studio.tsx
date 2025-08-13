@@ -566,6 +566,10 @@ export default function QrArtStudio() {
       toast({ variant: "destructive", title: "Error", description: "Content cannot be empty." });
       return;
     }
+    if (designs.length === 0) {
+        toast({ variant: "destructive", title: "No Designs", description: "Please create at least one design before generating." });
+        return;
+    }
 
     setIsLoading(true);
     setGeneratedQrs([]);
@@ -618,7 +622,7 @@ export default function QrArtStudio() {
       if (qrResults.length > 0) {
         toast({
           title: "Success",
-          description: "QR codes generated successfully.",
+          description: `QR codes generated for ${qrResults.length} design(s).`,
         });
       } else {
          toast({
