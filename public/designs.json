@@ -76,31 +76,5 @@
     "pixelGradientEnd": "",
     "bgGradientStart": "",
     "bgGradientEnd": ""
-  },
-  {
-    "id": 5,
-    "name": "New Image Design 5",
-    "template": "/templates/Black and Blue Simple Male Cool Instagram Profile Picture_20250813_104553_0000.svg",
-    "qrCodeImageTagIndex": 4,
-    "pixelStyle": "square",
-    "pixelColor": "#000000",
-    "backgroundColor": "#FFFFFF",
-    "foregroundColor": "#000000",
-    "eyeShape": "frame",
-    "eyeStyle": "square",
-    "eyeRadius": 8,
-    "padding": 30,
-    "canvasShape": "square",
-    "text": "Your Text Here",
-    "useImage": true,
-    "imageFilter": "none",
-    "imageBlur": 0,
-    "imageOverlayColor": "#FFFFFF",
-    "imageOverlayOpacity": 0.1,
-    "transparentBg": false,
-    "pixelGradientStart": "",
-    "pixelGradientEnd": "",
-    "bgGradientStart": "",
-    "bgGradientEnd": ""
   }
 ]
